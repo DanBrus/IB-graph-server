@@ -1,29 +1,18 @@
 FROM python:3.12-slim
 
-ARG TYPEDB_VERSION=3.5.5
-ARG TYPEDB_DOWNLOAD_URL="https://cloudsmith.io/~vaticle/repos/typedb/packages/download/typedb-all-linux/${TYPEDB_VERSION}/typedb-all-linux-${TYPEDB_VERSION}.tar.gz"
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app/src" \
-    TYPEDB_HOME="/opt/typedb" \
-    TYPEDB_DATA="/var/lib/typedb" \
-    TYPEDB_ADDRESS="127.0.0.1:1729"
+    TYPEDB_ADDRESS="typedb:1729" \
+    TYPEDB_USERNAME="admin" \
+    TYPEDB_PASSWORD="password" \
+    TYPEDB_TLS_ENABLED="false" \
+    TYPEDB_TLS_CA="" \
+    TYPEDB_DB_NAME="investigation_board" \
+    BOARD_SCHEMA_VERSION="v0.1" \
+    INVESTIGATION_NAME="tsarstvie"
 
 WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем TypeDB server
-RUN mkdir -p "${TYPEDB_HOME}" "${TYPEDB_DATA}" \
-    && curl -fSL "${TYPEDB_DOWNLOAD_URL}" \
-        | tar -xz -C "${TYPEDB_HOME}" --strip-components=1 \
-    && rm -rf "${TYPEDB_HOME}/server/data" \
-    && ln -s "${TYPEDB_DATA}" "${TYPEDB_HOME}/server/data"
-
-ENV PATH="${TYPEDB_HOME}:${PATH}"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
@@ -35,7 +24,7 @@ COPY src ./src
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 8001 1729
+EXPOSE 8001
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "graph_api:app", "--host", "0.0.0.0", "--port", "8001"]
