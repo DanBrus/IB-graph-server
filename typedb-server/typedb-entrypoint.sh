@@ -11,11 +11,11 @@ STARTUP_TIMEOUT="${TYPEDB_STARTUP_TIMEOUT:-60}"
 RESERVE_COPY_TIME="${RESERVE_COPY_TIME:-12:00}"
 RESERVE_DIR="${RESERVE_DIR:-${DUMPS_DIR}/reserve}"
 
-mkdir -p "${SCHEMA_DUMP}" "${DATA_DUMP}"
+typedb_connect="--address ${TYPEDB_ADDR} --username admin --password password --tls-disabled"
 
 cleanup() {
     echo "Exporting database ${DB_NAME} to ${SCHEMA_DUMP} and ${DATA_DUMP}..."
-    if ! "${TYPEDB_BIN}" console --command "database export ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
+    if ! "${TYPEDB_BIN}" console $typedb_connect --command "database export ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
         echo "Export failed (possibly missing DB); continuing shutdown."
     fi
     kill "${SERVER_PID}" 2>/dev/null || true
@@ -24,7 +24,7 @@ cleanup() {
 trap cleanup EXIT TERM INT
 
 echo "Starting TypeDB server on ${TYPEDB_ADDR}..."
-"${TYPEDB_BIN}" server --address="${TYPEDB_ADDR}" >/proc/1/fd/1 2>/proc/1/fd/2 &
+"${TYPEDB_BIN}" server --server.address "${TYPEDB_ADDR}" >/proc/1/fd/1 2>/proc/1/fd/2 &
 SERVER_PID=$!
 
 HOST="${TYPEDB_ADDR%:*}"
@@ -47,7 +47,7 @@ done
 echo "TypeDB is ready."
 
 echo "Importing database ${DB_NAME} from ${SCHEMA_DUMP} and ${DATA_DUMP} (if present)..."
-if ! "${TYPEDB_BIN}" console --command "database import ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
+if ! "${TYPEDB_BIN}" console $typedb_connect --command "database import ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
     echo "Import failed (possibly empty dumps); continuing."
 fi
 
@@ -57,7 +57,7 @@ cat >/tmp/typedb_reserve.sh <<EOF
 set -euo pipefail
 
 TYPEDB_BIN="${TYPEDB_BIN}"
-TYPEDB_ADDR="${TYPEDB_ADDR}"
+TYPEDB_ADDR="${HOST}:${PORT}"
 DB_NAME="${DB_NAME}"
 SCHEMA_DUMP="${SCHEMA_DUMP}"
 DATA_DUMP="${DATA_DUMP}"
@@ -70,7 +70,7 @@ LAST_BACKUP_DAY=""
 mkdir -p "\${RESERVE_DIR}"
 
 health_check() {
-    if "\${TYPEDB_BIN}" console --command "database list" >/dev/null 2>&1; then
+    if "\${TYPEDB_BIN}" console  $typedb_connect --command "database list" >/dev/null 2>&1; then
         echo "[reserve] TypeDB healthy at \${TYPEDB_ADDR}"
         return 0
     else

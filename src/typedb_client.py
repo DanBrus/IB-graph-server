@@ -59,9 +59,11 @@ TYPEDB_ADDRESS = os.getenv("TYPEDB_ADDRESS", "localhost:1729")
 TYPEDB_USERNAME = os.getenv("TYPEDB_USERNAME", "admin")
 TYPEDB_PASSWORD = os.getenv("TYPEDB_PASSWORD", "password")
 TYPEDB_TLS_ENABLED = os.getenv("TYPEDB_TLS_ENABLED", "false").lower() == "true"
-TYPEDB_TLS_CA = os.getenv("TYPEDB_TLS_CA")  # путь к CA, если TLS включён
+# путь к CA, если TLS включён; пустые строки превращаем в None, чтобы драйвер не пытался
+# открывать несуществующий путь
+TYPEDB_TLS_CA = os.getenv("TYPEDB_TLS_CA") or None
 
-TYPEDB_DB_NAME = os.getenv("TYPEDB_DB_NAME", "investigation_board")
+TYPEDB_DB_NAME = os.getenv("TYPEDB_DB_NAME", "tsarstvie-investigation")
 BOARD_SCHEMA_VERSION = os.getenv("BOARD_SCHEMA_VERSION", "v0.1")
 
 # Глобальное имя расследования
@@ -99,9 +101,10 @@ class TypeDBClient:
         # TypeDB Driver
         try:
             credentials = Credentials(username, password)
+            tls_ca_for_driver = tls_ca or None
             options = DriverOptions(
                 is_tls_enabled=tls_enabled,
-                tls_root_ca_path=tls_ca,
+                tls_root_ca_path=tls_ca_for_driver,
             )
             self.driver: Any = TypeDB.driver(typedb_address, credentials, options)
         except Exception as e:

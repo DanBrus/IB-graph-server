@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-bullseye
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TYPEDB_PASSWORD="password" \
     TYPEDB_TLS_ENABLED="false" \
     TYPEDB_TLS_CA="" \
-    TYPEDB_DB_NAME="investigation_board" \
+    TYPEDB_DB_NAME="tsarstvie-investigation" \
     BOARD_SCHEMA_VERSION="v0.1" \
     INVESTIGATION_NAME="tsarstvie"
 
