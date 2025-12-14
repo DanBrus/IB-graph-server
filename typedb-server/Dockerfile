@@ -4,7 +4,9 @@ ENV TYPEDB_HOME="/root/.typedb" \
     PATH="/root/.typedb:${PATH}" \
     TYPEDB_ADDRESS="0.0.0.0:1729" \
     DB_NAME="tsarstvie-investigation" \
-    DUMPS_DIR="/dumps"
+    DUMPS_DIR="/dumps" \
+    RESERVE_COPY_TIME="12:00" \
+    RESERVE_DIR="/dumps/reserve"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates netcat-openbsd bash \
