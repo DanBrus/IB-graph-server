@@ -1,0 +1,46 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+fetch {{
+  "investigation-name": $inv.name,
+  "version": $bv.version,
+  "board-name": $bv.name,
+  "description": $bv.description,
+
+  "nodes": [
+    match
+      $inv2 isa investigation, has name "{investigation_name}";
+      $bv2 isa board-version, has version "{version}";
+      investigation-has-version(investigation: $inv2, board: $bv2);
+      $n isa node;
+      board-has-node(board: $bv2, member-node: $n);
+    fetch {{
+      "node_id": $n.node_id,
+      "name": $n.name,
+      "pos_x": $n.pos_x,
+      "pos_y": $n.pos_y,
+      "picture_path": $n.picture_path,
+      "description": $n.description
+    }};
+  ],
+
+  "edges": [
+    match
+      $inv3 isa investigation, has name "{investigation_name}";
+      $bv3 isa board-version, has version "{version}";
+      investigation-has-version(investigation: $inv3, board: $bv3);
+      $n1 isa node;
+      board-has-node(board: $bv3, member-node: $n1);
+      $n2 isa node;
+      board-has-node(board: $bv3, member-node: $n2);
+      $e isa edge, links (endpoint-1: $n1, endpoint-2: $n2);
+      board-has-edge(board: $bv3, member-edge: $e);
+    fetch {{
+      "edge_id": $e.edge_id,
+      "description": $e.description,
+      "node1": $n1.node_id,
+      "node2": $n2.node_id
+    }};
+  ]
+}};

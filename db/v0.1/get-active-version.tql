@@ -1,0 +1,5 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+fetch {{
+  "active_version": $inv.active_version
+}};

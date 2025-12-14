@@ -1,0 +1,64 @@
+define
+  # ---------- Атрибуты ----------
+  attribute active_version, value string;
+  attribute version, value string;
+
+  attribute node_id, value integer;
+  attribute edge_id, value integer;
+
+  attribute name, value string;
+  attribute pos_x, value double;
+  attribute pos_y, value double;
+
+  attribute picture_path, value string;
+  attribute description, value string;
+
+  # ---------- Сущности ----------
+  entity investigation,
+    owns name @card(1),
+    owns active_version @card(0..1);
+
+  entity board-version,
+    owns version @card(1),
+    owns name @card(1),
+    owns description @card(1);
+
+  entity node,
+    owns node_id @card(1),
+    owns name @card(1),
+    owns pos_x @card(1),
+    owns pos_y @card(1),
+    owns picture_path,
+    owns description;
+
+  # ---------- Relations ----------
+  relation investigation-has-version,
+    relates investigation,
+    relates board;
+
+  relation board-has-node,
+    relates board,
+    relates member-node;
+
+  relation edge,
+    relates endpoint-1,
+    relates endpoint-2,
+    owns edge_id @card(1),
+    owns description @card(1);
+
+  relation board-has-edge,
+    relates board,
+    relates member-edge;
+
+  # ---------- Роли (plays) ----------
+  investigation  plays investigation-has-version:investigation;
+  board-version plays investigation-has-version:board;
+
+  board-version plays board-has-node:board;
+  node          plays board-has-node:member-node;
+
+  board-version plays board-has-edge:board;
+  edge          plays board-has-edge:member-edge;
+
+  node plays edge:endpoint-1;
+  node plays edge:endpoint-2;

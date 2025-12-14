@@ -1,0 +1,24 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  $n1 isa node, has node_id {node1_id};
+  board-has-node(board: $bv, member-node: $n1);
+
+  $n2 isa node, has node_id {node2_id};
+  board-has-node(board: $bv, member-node: $n2);
+
+  # Проверяем, что в этой версии ещё нет ребра с таким edge_id
+  not {{
+    $existing isa edge, has edge_id {edge_id};
+    board-has-edge(board: $bv, member-edge: $existing);
+  }};
+
+insert
+  $e isa edge,
+    has edge_id {edge_id},
+    has description "{description}";
+  $e links (endpoint-1: $n1, endpoint-2: $n2);
+  board-has-edge(board: $bv, member-edge: $e);
+end;

@@ -1,0 +1,11 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  $n isa node, has node_id {node_id};
+  $rel isa board-has-node, links (board: $bv, member-node: $n) ;
+delete
+  $rel;
+  $n;
+end;

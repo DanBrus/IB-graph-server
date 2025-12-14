@@ -1,0 +1,9 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  $e isa edge, has edge_id {edge_id};
+  board-has-edge(board: $bv, member-edge: $e);
+update
+  $e has description "{description}";

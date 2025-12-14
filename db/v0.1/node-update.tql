@@ -1,0 +1,13 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  $n isa node, has node_id {node_id};
+  board-has-node(board: $bv, member-node: $n);
+update
+  $n has name "{name}";
+  $n has pos_x {pos_x};
+  $n has pos_y {pos_y};
+  $n has picture_path "{picture_path}";
+  $n has description "{description}";

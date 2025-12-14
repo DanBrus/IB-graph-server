@@ -1,0 +1,158 @@
+[
+  {
+    "operation": "node-create",
+    "file": "node-create.tql",
+    "description": "Creates a node within the specified investigation board version.",
+    "params": [
+      "investigation_name",
+      "version",
+      "node_id",
+      "name",
+      "pos_x",
+      "pos_y",
+      "picture_path",
+      "description"
+    ],
+    "output": null
+  },
+  {
+    "operation": "node-update",
+    "file": "node-update.tql",
+    "description": "Updates properties of a node within the specified board version.",
+    "params": [
+      "investigation_name",
+      "version",
+      "node_id",
+      "name",
+      "pos_x",
+      "pos_y",
+      "picture_path",
+      "description"
+    ],
+    "output": null
+  },
+  {
+    "operation": "node-delete",
+    "file": "node-delete.tql",
+    "description": "Deletes a node and its association with the specified board version.",
+    "params": [
+      "investigation_name",
+      "version",
+      "node_id"
+    ],
+    "output": null
+  },
+  {
+    "operation": "edge-create",
+    "file": "edge-create.tql",
+    "description": "Creates an edge between two nodes within the specified board version.",
+    "params": [
+      "investigation_name",
+      "version",
+      "edge_id",
+      "node1_id",
+      "node2_id",
+      "description"
+    ],
+    "output": null
+  },
+  {
+    "operation": "edge-update",
+    "file": "edge-update.tql",
+    "description": "Updates the description of an edge.",
+    "params": [
+      "investigation_name",
+      "version",
+      "edge_id",
+      "description"
+    ],
+    "output": null
+  },
+  {
+    "operation": "edge-delete",
+    "file": "edge-delete.tql",
+    "description": "Deletes an edge and its association with the specified board version.",
+    "params": [
+      "investigation_name",
+      "version",
+      "edge_id"
+    ],
+    "output": null
+  },
+  {
+    "operation": "graph-by-version-get",
+    "file": "graph-by-version-get.tql",
+    "description": "Retrieves all nodes and edges of the specified investigation board version.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": {
+      "type": "json",
+      "contains": ["board_metadata", "nodes", "edges"]
+    }
+  },
+  {
+    "operation": "graph-by-version-delete",
+    "file": "graph-by-version-delete.tql",
+    "description": "Deletes all nodes and edges of the specified board version, then deletes the board version itself.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": null
+  },
+  {
+    "operation": "graph-by-version-create",
+    "file": "graph-by-version-create.tql",
+    "description": "Creates a new board version.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": null
+  },
+  {
+    "operation": "set-active-version",
+    "file": "set-active-version.tql",
+    "description": "Sets default board version.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": null
+  },
+  {
+    "operation": "get-versions",
+    "file": "get-versions.tql",
+    "description": "Gets list of versions.",
+    "params": [
+      "investigation_name"
+    ],
+    "output": null
+  },
+  {
+    "operation": "get-active-version",
+    "file": "get-active-version.tql",
+    "description": "Retrieves active version of the board.",
+    "params": [
+      "investigation_name"
+    ],
+    "output": {
+      "type": "json",
+      "fields": ["active_version"]
+    }
+  },
+  {
+    "operation": "investigation-create",
+    "file": "investigation-create.tql",
+    "params": ["investigation_name"],
+    "output": null
+  },
+  {
+    "operation": "investigation-delete",
+    "file": "investigation-delete.tql",
+    "params": ["investigation_name"],
+    "output": null
+  }
+]

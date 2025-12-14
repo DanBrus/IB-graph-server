@@ -1,0 +1,20 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  not {{
+    $existing isa node, has node_id {node_id};
+    board-has-node(board: $bv, member-node: $existing);
+  }};
+
+insert
+  $n isa node,
+    has node_id {node_id},
+    has name "{name}",
+    has pos_x {pos_x},
+    has pos_y {pos_y},
+    has picture_path "{picture_path}",
+    has description "{description}";
+  board-has-node(board: $bv, member-node: $n);
+end;
