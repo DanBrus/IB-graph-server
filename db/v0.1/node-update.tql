@@ -10,4 +10,5 @@ update
   $n has pos_x {pos_x};
   $n has pos_y {pos_y};
   $n has picture_path "{picture_path}";
+  $n has node_type "{node_type}"
   $n has description "{description}";

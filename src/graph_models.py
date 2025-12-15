@@ -9,6 +9,7 @@ class NodeDTO(BaseModel):
     name: str
     pos_x: float
     pos_y: float
+    node_type: Optional[str] = None
     picture_path: Optional[str] = None
     description: Optional[str] = None
 

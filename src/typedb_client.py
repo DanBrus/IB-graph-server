@@ -138,6 +138,16 @@ class TypeDBClient:
                 f"Unexpected error while initialising template driver: {e}"
             ) from e
 
+        # Если сервер доступен, но нужной БД нет — создаём её и расследование
+        try:
+            self._bootstrap_database_if_missing()
+        except Exception:
+            try:
+                self.driver.close()
+            except Exception:
+                pass
+            raise
+
     def close(self) -> None:
         """Закрывает соединение с TypeDB."""
         try:
@@ -215,6 +225,37 @@ class TypeDBClient:
         except Exception as e:
             raise TypeDBClientError(
                 f"Failed to list databases: {e}"
+            ) from e
+
+    def _bootstrap_database_if_missing(self) -> None:
+        """
+        Автоматически создаёт базу данных и расследование, если БД ещё не существует.
+        """
+        try:
+            exists = self.driver.databases.contains(self.db_name)
+        except Exception as e:
+            raise TypeDBClientError(
+                f"Failed to check whether database '{self.db_name}' exists: {e}"
+            ) from e
+
+        if exists:
+            return
+
+        try:
+            self.driver.databases.create(self.db_name)
+        except Exception as e:
+            raise TypeDBClientError(
+                f"Failed to create database '{self.db_name}' automatically: {e}"
+            ) from e
+
+        try:
+            self._create_investigation_with_schema()
+        except TypeDBClientError:
+            raise
+        except Exception as e:
+            raise TypeDBClientError(
+                f"Failed to initialise investigation '{INVESTIGATION_NAME}' "
+                f"in database '{self.db_name}': {e}"
             ) from e
 
     def _resolve_version(self, version: str | None) -> str:
@@ -326,6 +367,7 @@ class TypeDBClient:
         pos_x: float,
         pos_y: float,
         picture_path: str,
+        node_type: str,
         description: str,
         *,
         version: str | None = None,
@@ -343,6 +385,7 @@ class TypeDBClient:
             pos_x=pos_x,
             pos_y=pos_y,
             picture_path=picture_path,
+            node_type=node_type,
             description=description,
         )
         self._execute_write(op_name, query)
@@ -354,6 +397,7 @@ class TypeDBClient:
         pos_x: float,
         pos_y: float,
         picture_path: str,
+        node_type: str,
         description: str,
         *,
         version: str | None = None,
@@ -371,6 +415,7 @@ class TypeDBClient:
             pos_x=pos_x,
             pos_y=pos_y,
             picture_path=picture_path,
+            node_type=node_type,
             description=description,
         )
         self._execute_write(op_name, query)
@@ -566,7 +611,10 @@ class TypeDBClient:
         # Разрешаем только в debug-режиме
         self._ensure_debug_allowed()
 
-        # 1. Читаем файл со схемой
+        self._create_investigation_with_schema()
+
+    def _create_investigation_with_schema(self) -> None:
+        """Применяет схему и создаёт расследование с именем INVESTIGATION_NAME."""
         schema_path = QUERIES_DIR / "schema"
         try:
             schema_text = schema_path.read_text(encoding="utf-8")
@@ -575,7 +623,6 @@ class TypeDBClient:
                 f"Failed to read schema file '{schema_path}': {e}"
             ) from e
 
-        # 2. Применяем schema к текущей БД
         try:
             with self.transaction(TransactionType.SCHEMA) as tx:
                 tx.query(schema_text).resolve()
@@ -586,7 +633,6 @@ class TypeDBClient:
                 f"to database '{self.db_name}': {e}"
             ) from e
 
-        # 3. Выполняем шаблонную операцию создания расследования
         op_name = "investigation-create"
         query = self._build_query(
             op_name,
@@ -676,6 +722,7 @@ class TypeDBClient:
                     pos_x=float(get_field(node_obj, "pos_x")),
                     pos_y=float(get_field(node_obj, "pos_y")),
                     picture_path=get_field(node_obj, "picture_path"),
+                    node_type=get_field(node_obj, "node_type"),
                     description=get_field(node_obj, "description"),
                     version=resolved_version,
                 )
@@ -691,6 +738,7 @@ class TypeDBClient:
             new_pos_x = float(get_field(node_obj, "pos_x"))
             new_pos_y = float(get_field(node_obj, "pos_y"))
             new_picture = get_field(node_obj, "picture_path")
+            new_type = get_field(node_obj, "node_type")
             new_desc = get_field(node_obj, "description")
 
             need_update = (
@@ -698,6 +746,7 @@ class TypeDBClient:
                 or float(db_node.get("pos_x")) != new_pos_x
                 or float(db_node.get("pos_y")) != new_pos_y
                 or db_node.get("picture_path") != new_picture
+                or db_node.get("node_type") != new_type
                 or db_node.get("description") != new_desc
             )
 
@@ -708,6 +757,7 @@ class TypeDBClient:
                     pos_x=new_pos_x,
                     pos_y=new_pos_y,
                     picture_path=new_picture,
+                    node_type=new_type,
                     description=new_desc,
                     version=resolved_version,
                 )

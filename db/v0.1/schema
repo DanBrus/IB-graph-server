@@ -7,6 +7,7 @@ define
   attribute edge_id, value integer;
 
   attribute name, value string;
+  attribute node_type, value string;
   attribute pos_x, value double;
   attribute pos_y, value double;
 
@@ -26,6 +27,7 @@ define
   entity node,
     owns node_id @card(1),
     owns name @card(1),
+    owns node_type @card(0..1),
     owns pos_x @card(1),
     owns pos_y @card(1),
     owns picture_path,

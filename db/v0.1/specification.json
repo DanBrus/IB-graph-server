@@ -11,6 +11,7 @@
       "pos_x",
       "pos_y",
       "picture_path",
+      "node_type",
       "description"
     ],
     "output": null
@@ -27,6 +28,7 @@
       "pos_x",
       "pos_y",
       "picture_path",
+      "node_type",
       "description"
     ],
     "output": null

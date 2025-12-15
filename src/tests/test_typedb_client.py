@@ -119,6 +119,7 @@ def test_investigation_lifecycle(client: TypeDBClient) -> None:
             pos_x=n["pos_x"],
             pos_y=n["pos_y"],
             picture_path=n["picture_path"],
+            node_type=n["node_type"],
             description=n["description"],
             version=TEST_VERSION,
         )

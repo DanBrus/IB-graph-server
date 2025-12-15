@@ -15,6 +15,7 @@ insert
     has pos_x {pos_x},
     has pos_y {pos_y},
     has picture_path "{picture_path}",
+    has node_type "{node_type}",
     has description "{description}";
   board-has-node(board: $bv, member-node: $n);
 end;
