@@ -250,7 +250,7 @@ class TypeDBClient:
 
         try:
             self._create_investigation_with_schema()
-            self.graph_by_version_create(version="0.0")
+            self.graph_by_version_create(version="0.0", name="Basic board", description="This board has created to fill empty database")
             self.set_active_version(version="0.0")
         except TypeDBClientError:
             raise
