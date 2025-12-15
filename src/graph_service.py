@@ -46,20 +46,20 @@ class GraphService:
 
     # --------- ЗАПИСЬ --------- #
 
-    def create_version(self, version: str) -> dict:
+    def create_version(self, version: str, name: str, description: str) -> dict:
         """
         Создать пустую версию доски.
         """
-        self.client.graph_by_version_create(version=version)
+        self.client.graph_by_version_create(version=version, name=name, description=description)
         print(f"[GraphService] create version created: {version}")
         return {"status": "ok"}
 
     def delete_version(self, version: str) -> dict:
         """
-        Создать пустую версию доски.
+        Удалить указанную версию.
         """
         self.client.graph_by_version_delete(version=version)
-        print(f"[GraphService] create version deleted: {version}")
+        print(f"[GraphService] version deleted: {version}")
         return {"status": "ok"}
 
     def set_active_version(self, version: str) -> dict:

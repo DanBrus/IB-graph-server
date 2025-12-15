@@ -250,6 +250,8 @@ class TypeDBClient:
 
         try:
             self._create_investigation_with_schema()
+            self.graph_by_version_create(version="0.0")
+            self.set_active_version(version="0.0")
         except TypeDBClientError:
             raise
         except Exception as e:
@@ -257,6 +259,7 @@ class TypeDBClient:
                 f"Failed to initialise investigation '{INVESTIGATION_NAME}' "
                 f"in database '{self.db_name}': {e}"
             ) from e
+        
 
     def _resolve_version(self, version: str | None) -> str:
         """
@@ -543,19 +546,22 @@ class TypeDBClient:
     ) -> None:
         """Deletes all nodes and edges of the specified board version, then deletes the board version itself."""
         op_name = "graph-by-version-delete"
-        resolved_version = self._resolve_version(version)
+        if version == None:
+            raise QueryExecutionError(
+                f"Operation '{op_name}' requieres 'version' to be set."
+            )
 
         query = self._build_query(
             op_name,
             investigation_name=INVESTIGATION_NAME,
-            version=resolved_version,
+            version=version,
         )
         self._execute_write(op_name, query)
 
     def graph_by_version_create(
         self,
         *,
-        version: str,
+        version: str, name: str, description: str
     ) -> None:
         """Creates a new board version."""
         op_name = "graph-by-version-create"
@@ -564,6 +570,8 @@ class TypeDBClient:
             op_name,
             investigation_name=INVESTIGATION_NAME,
             version=version,
+            name=name,
+            description=description
         )
         self._execute_write(op_name, query)
 

@@ -3,7 +3,7 @@ match
 insert
   $bv isa board-version,
     has version "{version}",
-    has name "Board v{version}",
-    has description "";
+    has name "{name}",
+    has description "{description}";
 
   investigation-has-version(investigation: $inv, board: $bv);

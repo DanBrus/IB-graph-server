@@ -134,11 +134,11 @@ def get_active_version():
 # --------- Создание / удаление версии --------- #
 
 @app.post("/graph/versions", response_model=BasicResponseDTO)
-def create_version(payload: ActiveVersionDTO):
+def create_version(payload: VersionDTO):
     """
     Создать пустую версию доски.
     """
-    result = service.create_version(payload.version)
+    result = service.create_version(version=payload.version, name=payload.name, description=payload.description)
     return BasicResponseDTO(**result)
 
 @app.delete("/graph/versions", response_model=BasicResponseDTO)

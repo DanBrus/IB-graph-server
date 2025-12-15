@@ -110,7 +110,9 @@
     "description": "Creates a new board version.",
     "params": [
       "investigation_name",
-      "version"
+      "version",
+      "name",
+      "description"
     ],
     "output": null
   },
