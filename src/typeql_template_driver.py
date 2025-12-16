@@ -222,7 +222,10 @@ class TypeQLTemplateDriver:
             )
 
         template = op["template"]
-
+        for key in merged_params.keys():
+            if key == "description" and merged_params[key] != None:
+                merged_params[key] = merged_params[key].replace("\"", "\\\"")
+                merged_params[key] = merged_params[key].replace("\'", "\\\'")
         try:
             # TypeQL template should use Python's str.format placeholders: {param_name}
             query = template.format(**merged_params)
