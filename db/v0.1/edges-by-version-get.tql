@@ -1,0 +1,15 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  # Исходим из корректности данных: если edge присутствует в БД,
+  # то присутствуют и ноды, к которым он относится.
+  $e isa edge, links (endpoint-1: $n1, endpoint-2: $n2);
+  board-has-edge(board: $bv, member-edge: $e);
+fetch {{
+  "edge_id": $e.edge_id,
+  "description": $e.description,
+  "node1": $n1.node_id,
+  "node2": $n2.node_id
+}};

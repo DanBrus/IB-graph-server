@@ -46,15 +46,30 @@ class GraphService:
 
     @log_api_method_execution
     def get_nodes(self, version, node_id, ids, name, has_picture):
-        db_data = self.client.graph_by_version_get(version=version)
-        print(f"[GraphService] board version nodes requested: {db_data['version']}")
-        return db_data["nodes"]
+        nodes = self.client.nodes_by_version_get(
+            version=version,
+            node_id=node_id,
+            ids=ids,
+            name=name,
+            has_picture=has_picture,
+        )
+        print(f"[GraphService] board version nodes requested: {version}")
+        return nodes
 
     @log_api_method_execution
     def get_edges(self, version, edge_id, ids, node_id, from_id, to_id):
-        db_data = self.client.graph_by_version_get(version=version)
-        print(f"[GraphService] board version edges requested: {db_data['version']}")
-        return db_data["edges"]
+        # Исходим из корректности данных в БД: если edge присутствует,
+        # то присутствуют и ноды, к которым он относится.
+        edges = self.client.edges_by_version_get(
+            version=version,
+            edge_id=edge_id,
+            ids=ids,
+            node_id=node_id,
+            from_id=from_id,
+            to_id=to_id,
+        )
+        print(f"[GraphService] board version edges requested: {version}")
+        return edges
 
     @log_api_method_execution
     def get_versions(self) -> List[VersionDTO]:

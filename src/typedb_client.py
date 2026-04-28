@@ -349,16 +349,35 @@ class TypeDBClient:
         """Общий helper для read-запросов. Возвращает список документов (dict)."""
         try:
             with self.transaction(TransactionType.READ) as tx:
-                answer = tx.query(query).resolve()
-                # ВАЖНО: материализуем итератор внутри транзакции
-                docs_iter = answer.as_concept_documents()
-                docs = list(docs_iter)
-                return docs
+                return self._read_docs_in_transaction(tx, query)
         except Exception as e:
             raise QueryExecutionError(
                 f"Failed to execute read operation '{op_name}' "
                 f"on database '{self.db_name}': {e}"
             ) from e
+
+    def _execute_read_queries(
+        self,
+        operations: list[tuple[str, str]],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Выполняет несколько read-запросов в одной транзакции."""
+        try:
+            with self.transaction(TransactionType.READ) as tx:
+                return {
+                    op_name: self._read_docs_in_transaction(tx, query)
+                    for op_name, query in operations
+                }
+        except Exception as e:
+            operation_names = ", ".join(op_name for op_name, _ in operations)
+            raise QueryExecutionError(
+                f"Failed to execute read operations ({operation_names}) "
+                f"on database '{self.db_name}': {e}"
+            ) from e
+
+    def _read_docs_in_transaction(self, tx: Any, query: str) -> list[dict[str, Any]]:
+        answer = tx.query(query).resolve()
+        # ВАЖНО: материализуем итератор внутри транзакции
+        return list(answer.as_concept_documents())
 
 
     # ------------------------------ node-* ------------------------------
@@ -513,7 +532,67 @@ class TypeDBClient:
         version: str | None = None,
     ) -> dict[str, Any]:
         """Retrieves all nodes and edges of the specified investigation board version."""
-        op_name = "graph-by-version-get"
+        metadata_op_name = "board-version-metadata-get"
+        nodes_op_name = "nodes-by-version-get"
+        edges_op_name = "edges-by-version-get"
+        resolved_version = self._resolve_version(version)
+
+        docs_by_operation = self._execute_read_queries([
+            (
+                metadata_op_name,
+                self._build_query(
+                    metadata_op_name,
+                    investigation_name=INVESTIGATION_NAME,
+                    version=resolved_version,
+                ),
+            ),
+            (
+                nodes_op_name,
+                self._build_query(
+                    nodes_op_name,
+                    investigation_name=INVESTIGATION_NAME,
+                    version=resolved_version,
+                ),
+            ),
+            (
+                edges_op_name,
+                self._build_query(
+                    edges_op_name,
+                    investigation_name=INVESTIGATION_NAME,
+                    version=resolved_version,
+                ),
+            ),
+        ])
+
+        metadata_docs = docs_by_operation[metadata_op_name]
+        if not metadata_docs:
+            raise QueryExecutionError(
+                f"Operation '{metadata_op_name}' returned no documents "
+                f"(investigation_name='{INVESTIGATION_NAME}', version='{resolved_version}')."
+            )
+
+        if len(metadata_docs) > 1:
+            raise QueryExecutionError(
+                f"Operation '{metadata_op_name}' returned multiple documents ({len(metadata_docs)}), "
+                f"but expected exactly one."
+            )
+
+        graph = dict(metadata_docs[0])
+        graph["nodes"] = docs_by_operation[nodes_op_name]
+        graph["edges"] = docs_by_operation[edges_op_name]
+        return graph
+
+    def nodes_by_version_get(
+        self,
+        *,
+        version: str | None = None,
+        node_id: Any = None,
+        ids: list[Any] | None = None,
+        name: str | None = None,
+        has_picture: bool | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieves nodes of the specified investigation board version."""
+        op_name = "nodes-by-version-get"
         resolved_version = self._resolve_version(version)
 
         query = self._build_query(
@@ -522,21 +601,72 @@ class TypeDBClient:
             version=resolved_version,
         )
 
-        docs = self._execute_read(op_name, query)
+        nodes = self._execute_read(op_name, query)
+        node_id_filter = str(node_id) if node_id is not None else None
+        ids_filter = {str(item) for item in ids} if ids is not None else None
 
-        if not docs:
-            raise QueryExecutionError(
-                f"Operation '{op_name}' returned no documents "
-                f"(investigation_name='{INVESTIGATION_NAME}', version='{resolved_version}')."
-            )
+        def node_matches(node: dict[str, Any]) -> bool:
+            current_node_id = str(node.get("node_id"))
+            if node_id_filter is not None and current_node_id != node_id_filter:
+                return False
+            if ids_filter is not None and current_node_id not in ids_filter:
+                return False
+            if name is not None and node.get("name") != name:
+                return False
+            if has_picture is not None:
+                picture_path = node.get("picture_path")
+                node_has_picture = picture_path is not None and picture_path != ""
+                if node_has_picture != has_picture:
+                    return False
+            return True
 
-        if len(docs) > 1:
-            raise QueryExecutionError(
-                f"Operation '{op_name}' returned multiple documents ({len(docs)}), "
-                f"but expected exactly one."
-            )
+        return [node for node in nodes if node_matches(node)]
 
-        return docs[0]
+    def edges_by_version_get(
+        self,
+        *,
+        version: str | None = None,
+        edge_id: Any = None,
+        ids: list[Any] | None = None,
+        node_id: Any = None,
+        from_id: Any = None,
+        to_id: Any = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieves edges of the specified investigation board version."""
+        op_name = "edges-by-version-get"
+        resolved_version = self._resolve_version(version)
+
+        query = self._build_query(
+            op_name,
+            investigation_name=INVESTIGATION_NAME,
+            version=resolved_version,
+        )
+
+        edges = self._execute_read(op_name, query)
+        edge_id_filter = str(edge_id) if edge_id is not None else None
+        ids_filter = {str(item) for item in ids} if ids is not None else None
+        node_id_filter = str(node_id) if node_id is not None else None
+        from_id_filter = str(from_id) if from_id is not None else None
+        to_id_filter = str(to_id) if to_id is not None else None
+
+        def edge_matches(edge: dict[str, Any]) -> bool:
+            current_edge_id = str(edge.get("edge_id"))
+            node1 = str(edge.get("node1"))
+            node2 = str(edge.get("node2"))
+
+            if edge_id_filter is not None and current_edge_id != edge_id_filter:
+                return False
+            if ids_filter is not None and current_edge_id not in ids_filter:
+                return False
+            if node_id_filter is not None and node_id_filter not in {node1, node2}:
+                return False
+            if from_id_filter is not None and node1 != from_id_filter:
+                return False
+            if to_id_filter is not None and node2 != to_id_filter:
+                return False
+            return True
+
+        return [edge for edge in edges if edge_matches(edge)]
 
 
     def graph_by_version_delete(

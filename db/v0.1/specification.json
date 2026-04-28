@@ -95,6 +95,43 @@
     }
   },
   {
+    "operation": "board-version-metadata-get",
+    "file": "board-version-metadata-get.tql",
+    "description": "Retrieves investigation board version metadata.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": {
+      "type": "json",
+      "fields": ["investigation-name", "version", "board-name", "description"]
+    }
+  },
+  {
+    "operation": "nodes-by-version-get",
+    "file": "nodes-by-version-get.tql",
+    "description": "Retrieves nodes of the specified investigation board version.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": {
+      "type": "json"
+    }
+  },
+  {
+    "operation": "edges-by-version-get",
+    "file": "edges-by-version-get.tql",
+    "description": "Retrieves edges of the specified investigation board version.",
+    "params": [
+      "investigation_name",
+      "version"
+    ],
+    "output": {
+      "type": "json"
+    }
+  },
+  {
     "operation": "graph-by-version-delete",
     "file": "graph-by-version-delete.tql",
     "description": "Deletes all nodes and edges of the specified board version, then deletes the board version itself.",
