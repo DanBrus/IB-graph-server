@@ -603,7 +603,7 @@ class TypeDBClient:
         if not docs:
             raise QueryExecutionError(
                 f"Operation '{op_name}' returned no documents "
-                f"(investigation_name='{INVESTIGATION_NAME}', version='{resolved_version}')."
+                f"(investigation_name='{INVESTIGATION_NAME}')."
             )
 
         if len(docs) > 1:
@@ -710,21 +710,65 @@ class TypeDBClient:
             new_edges_by_id[edge_id] = e
 
         resolved_version = self._resolve_version(version)
+        write_queries: list[tuple[str, str]] = []
+
+        def enqueue_write(op_name: str, **params: Any) -> None:
+            query = self._build_query(
+                op_name,
+                investigation_name=INVESTIGATION_NAME,
+                version=resolved_version,
+                **params,
+            )
+            write_queries.append((op_name, query))
+
+        # ===================== РЁБРА: подготовка =====================
+
+        edges_to_delete: list[str] = []
+        edges_to_recreate: list[str] = []
+        edges_to_update: list[str] = []
+
+        for edge_id_str, db_edge in db_edges_by_id.items():
+            if edge_id_str not in new_edges_by_id:
+                edges_to_delete.append(edge_id_str)
+                continue
+
+            edge_obj = new_edges_by_id[edge_id_str]
+
+            db_node1 = str(db_edge.get("node1"))
+            db_node2 = str(db_edge.get("node2"))
+            db_desc = db_edge.get("description")
+
+            new_node1 = str(get_field(edge_obj, "node1"))
+            new_node2 = str(get_field(edge_obj, "node2"))
+            new_desc = get_field(edge_obj, "description")
+
+            endpoints_changed = (db_node1 != new_node1) or (db_node2 != new_node2)
+            desc_changed = db_desc != new_desc
+
+            if endpoints_changed:
+                edges_to_delete.append(edge_id_str)
+                edges_to_recreate.append(edge_id_str)
+            elif desc_changed:
+                edges_to_update.append(edge_id_str)
+
+        edges_to_recreate_set = set(edges_to_recreate)
+
+        # Сначала удаляем рёбра, чтобы ноды можно было удалить или перепривязать.
+        for edge_id_str in edges_to_delete:
+            enqueue_write("edge-delete", edge_id=edge_id_str)
 
         # ===================== НОДЫ =====================
 
         # 1) Удаляем ноды, которых больше нет во входных данных
         for node_id_str in list(db_nodes_by_id.keys()):
             if node_id_str not in new_nodes_by_id:
-                self.node_delete(
-                    node_id=node_id_str,
-                    version=resolved_version,
-                )
+                enqueue_write("node-delete", node_id=node_id_str)
 
         # 2) Создаём ноды, которых нет в БД
         for node_id_str, node_obj in new_nodes_by_id.items():
             if node_id_str not in db_nodes_by_id:
-                self.node_create(
+                enqueue_write(
+                    "node-create",
                     node_id=node_id_str,
                     name=get_field(node_obj, "name"),
                     pos_x=float(get_field(node_obj, "pos_x")),
@@ -732,7 +776,6 @@ class TypeDBClient:
                     picture_path=get_field(node_obj, "picture_path"),
                     node_type=get_field(node_obj, "node_type"),
                     description=get_field(node_obj, "description"),
-                    version=resolved_version,
                 )
 
         # 3) Обновляем ноды, которые есть и там, и там, но отличаются
@@ -759,7 +802,8 @@ class TypeDBClient:
             )
 
             if need_update:
-                self.node_update(
+                enqueue_write(
+                    "node-update",
                     node_id=node_id_str,
                     name=new_name,
                     pos_x=new_pos_x,
@@ -767,64 +811,41 @@ class TypeDBClient:
                     picture_path=new_picture,
                     node_type=new_type,
                     description=new_desc,
-                    version=resolved_version,
                 )
 
         # ===================== РЁБРА =====================
 
-        # 1) Удаляем рёбра, которых больше нет
-        for edge_id_str in list(db_edges_by_id.keys()):
-            if edge_id_str not in new_edges_by_id:
-                self.edge_delete(
-                    edge_id=edge_id_str,
-                    version=resolved_version,
-                )
-
-        # 2) Создаём рёбра, которых нет в БД
+        # 1) Создаём новые рёбра и рёбра с изменившимися концами
         for edge_id_str, edge_obj in new_edges_by_id.items():
-            if edge_id_str not in db_edges_by_id:
-                self.edge_create(
+            if edge_id_str not in db_edges_by_id or edge_id_str in edges_to_recreate_set:
+                enqueue_write(
+                    "edge-create",
                     edge_id=edge_id_str,
                     node1_id=str(get_field(edge_obj, "node1")),
                     node2_id=str(get_field(edge_obj, "node2")),
                     description=get_field(edge_obj, "description"),
-                    version=resolved_version,
                 )
 
-        # 3) Обновляем рёбра, которые есть и там, и там
-        for edge_id_str, db_edge in db_edges_by_id.items():
-            if edge_id_str not in new_edges_by_id:
-                continue
-
+        # 2) Обновляем рёбра, у которых поменялось только описание
+        for edge_id_str in edges_to_update:
             edge_obj = new_edges_by_id[edge_id_str]
+            enqueue_write(
+                "edge-update",
+                edge_id=edge_id_str,
+                description=get_field(edge_obj, "description"),
+            )
 
-            db_node1 = str(db_edge.get("node1"))
-            db_node2 = str(db_edge.get("node2"))
-            db_desc = db_edge.get("description")
+        if not write_queries:
+            return
 
-            new_node1 = str(get_field(edge_obj, "node1"))
-            new_node2 = str(get_field(edge_obj, "node2"))
-            new_desc = get_field(edge_obj, "description")
-
-            endpoints_changed = (db_node1 != new_node1) or (db_node2 != new_node2)
-            desc_changed = db_desc != new_desc
-
-            if endpoints_changed:
-                # Меняем концы ребра — удаляем и создаём заново с тем же id
-                self.edge_delete(
-                    edge_id=edge_id_str,
-                    version=resolved_version,
-                )
-                self.edge_create(
-                    edge_id=edge_id_str,
-                    node1_id=new_node1,
-                    node2_id=new_node2,
-                    description=new_desc,
-                    version=resolved_version,
-                )
-            elif desc_changed:
-                self.edge_update(
-                    edge_id=edge_id_str,
-                    description=new_desc,
-                    version=resolved_version,
-                )
+        operation_names = ", ".join(op_name for op_name, _ in write_queries)
+        try:
+            with self.transaction(TransactionType.WRITE) as tx:
+                for _, query in write_queries:
+                    tx.query(query).resolve()
+                tx.commit()
+        except Exception as e:
+            raise QueryExecutionError(
+                f"Failed to execute graph update operations ({operation_names}) "
+                f"on database '{self.db_name}': {e}"
+            ) from e

@@ -20,6 +20,7 @@ fetch {{
       "name": $n.name,
       "pos_x": $n.pos_x,
       "pos_y": $n.pos_y,
+      "node_type": $n.node_type,
       "picture_path": $n.picture_path,
       "description": $n.description
     }};

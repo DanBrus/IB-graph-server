@@ -13,15 +13,39 @@ RESERVE_DIR="${RESERVE_DIR:-${DUMPS_DIR}/reserve}"
 
 typedb_connect="--address ${TYPEDB_ADDR} --username admin --password password --tls-disabled"
 
-cleanup() {
+export_database() {
+    local schema_tmp="${SCHEMA_DUMP}.tmp.$$"
+    local data_tmp="${DATA_DUMP}.tmp.$$"
+
+    mkdir -p "$(dirname "${SCHEMA_DUMP}")" "$(dirname "${DATA_DUMP}")"
+    rm -f "${schema_tmp}" "${data_tmp}"
+
     echo "Exporting database ${DB_NAME} to ${SCHEMA_DUMP} and ${DATA_DUMP}..."
-    if ! "${TYPEDB_BIN}" console $typedb_connect --command "database export ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
+    if ! "${TYPEDB_BIN}" console $typedb_connect --command "database export ${DB_NAME} ${schema_tmp} ${data_tmp}" >/proc/1/fd/1 2>/proc/1/fd/2; then
+        rm -f "${schema_tmp}" "${data_tmp}"
         echo "Export failed (possibly missing DB); continuing shutdown."
+        return 1
     fi
-    kill "${SERVER_PID}" 2>/dev/null || true
-    wait "${SERVER_PID}" 2>/dev/null || true
+
+    mv -f "${schema_tmp}" "${SCHEMA_DUMP}"
+    mv -f "${data_tmp}" "${DATA_DUMP}"
+    echo "Export completed."
 }
-trap cleanup EXIT TERM INT
+
+cleanup() {
+    if [ "${CLEANUP_STARTED:-false}" = true ]; then
+        return
+    fi
+    CLEANUP_STARTED=true
+
+    export_database || true
+    if [ -n "${SERVER_PID:-}" ]; then
+        kill "${SERVER_PID}" 2>/dev/null || true
+        wait "${SERVER_PID}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+trap 'cleanup; exit 0' TERM INT
 
 echo "Starting TypeDB server on ${TYPEDB_ADDR}..."
 "${TYPEDB_BIN}" server --server.address "${TYPEDB_ADDR}" >/proc/1/fd/1 2>/proc/1/fd/2 &
