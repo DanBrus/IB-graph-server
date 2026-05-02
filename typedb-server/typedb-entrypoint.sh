@@ -1,17 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TYPEDB_BIN="${TYPEDB_BIN:-${TYPEDB_HOME}/typedb}"
-TYPEDB_ADDR="${TYPEDB_ADDRESS:-0.0.0.0:1729}"
+log() {
+    echo "[$(date -Is)] $*"
+}
+
+TYPEDB_BIN="${TYPEDB_BIN:-typedb}"
+TYPEDB_ADDRESS="${TYPEDB_ADDRESS:-0.0.0.0:1729}"
+TYPEDB_HTTP_ADDRESS="${TYPEDB_HTTP_ADDRESS:-0.0.0.0:8000}"
+TYPEDB_CLIENT_ADDRESS="${TYPEDB_CLIENT_ADDRESS:-127.0.0.1:1729}"
+TYPEDB_USERNAME="${TYPEDB_USERNAME:-admin}"
+TYPEDB_PASSWORD="${TYPEDB_PASSWORD:-password}"
+TYPEDB_TLS_DISABLED="${TYPEDB_TLS_DISABLED:-true}"
+TYPEDB_DATA_DIR="${TYPEDB_DATA_DIR:-/var/lib/typedb/data}"
+STARTUP_TIMEOUT="${TYPEDB_STARTUP_TIMEOUT:-60}"
+
 DB_NAME="${DB_NAME:-tsarstvie-investigation}"
 DUMPS_DIR="${DUMPS_DIR:-/dumps}"
 SCHEMA_DUMP="${SCHEMA_DUMP:-${DUMPS_DIR}/schema}"
 DATA_DUMP="${DATA_DUMP:-${DUMPS_DIR}/data}"
-STARTUP_TIMEOUT="${TYPEDB_STARTUP_TIMEOUT:-60}"
 RESERVE_COPY_TIME="${RESERVE_COPY_TIME:-12:00}"
 RESERVE_DIR="${RESERVE_DIR:-${DUMPS_DIR}/reserve}"
 
-typedb_connect="--address ${TYPEDB_ADDR} --username admin --password password --tls-disabled"
+TYPEDB_BIN_RESOLVED="$(command -v "${TYPEDB_BIN}")"
+TYPEDB_BIN="${TYPEDB_BIN_RESOLVED}"
+
+typedb_connect=(
+    --address "${TYPEDB_CLIENT_ADDRESS}"
+    --username "${TYPEDB_USERNAME}"
+    --password "${TYPEDB_PASSWORD}"
+)
+
+if [ "${TYPEDB_TLS_DISABLED}" = "true" ]; then
+    typedb_connect+=(--tls-disabled)
+fi
+
+run_console() {
+    "${TYPEDB_BIN}" console "${typedb_connect[@]}" "$@"
+}
+
+health_check() {
+    run_console --command "database list" >/dev/null 2>&1
+}
 
 export_database() {
     local schema_tmp="${SCHEMA_DUMP}.tmp.$$"
@@ -20,16 +50,87 @@ export_database() {
     mkdir -p "$(dirname "${SCHEMA_DUMP}")" "$(dirname "${DATA_DUMP}")"
     rm -f "${schema_tmp}" "${data_tmp}"
 
-    echo "Exporting database ${DB_NAME} to ${SCHEMA_DUMP} and ${DATA_DUMP}..."
-    if ! "${TYPEDB_BIN}" console $typedb_connect --command "database export ${DB_NAME} ${schema_tmp} ${data_tmp}" >/proc/1/fd/1 2>/proc/1/fd/2; then
+    log "Exporting database ${DB_NAME} to ${SCHEMA_DUMP} and ${DATA_DUMP}..."
+
+    if ! run_console --command "database export ${DB_NAME} ${schema_tmp} ${data_tmp}"; then
         rm -f "${schema_tmp}" "${data_tmp}"
-        echo "Export failed (possibly missing DB); continuing shutdown."
+        log "Export failed, possibly missing DB; continuing."
         return 1
     fi
 
     mv -f "${schema_tmp}" "${SCHEMA_DUMP}"
     mv -f "${data_tmp}" "${DATA_DUMP}"
-    echo "Export completed."
+
+    log "Export completed."
+}
+
+seconds_until_reserve_time() {
+    local hour
+    local minute
+    local now
+    local target
+
+    if ! [[ "${RESERVE_COPY_TIME}" =~ ^([0-9]{1,2}):([0-9]{2})$ ]]; then
+        log "[reserve] Invalid RESERVE_COPY_TIME=${RESERVE_COPY_TIME}; fallback to 3600 seconds."
+        echo 3600
+        return
+    fi
+
+    hour="${BASH_REMATCH[1]}"
+    minute="${BASH_REMATCH[2]}"
+
+    now="$(date +%s)"
+    target="$(date -d "today ${hour}:${minute}:00" +%s)"
+
+    if [ "${target}" -le "${now}" ]; then
+        target="$(date -d "tomorrow ${hour}:${minute}:00" +%s)"
+    fi
+
+    echo $((target - now))
+}
+
+rotate_and_dump() {
+    local ts
+    local dest
+    local moved=false
+
+    ts="$(date +%Y%m%d%H%M%S)"
+    dest="$(dirname "${RESERVE_DIR}")/$(basename "${RESERVE_DIR}")_${ts}"
+
+    log "[reserve] Removing previous reserve directory at ${RESERVE_DIR}"
+    rm -rf "${RESERVE_DIR}"
+
+    mkdir -p "${dest}"
+
+    for src in "${SCHEMA_DUMP}" "${DATA_DUMP}"; do
+        if [ -e "${src}" ]; then
+            mv "${src}" "${dest}/"
+            moved=true
+        fi
+    done
+
+    if [ "${moved}" = true ]; then
+        log "[reserve] Existing dumps moved to ${dest}"
+    else
+        rmdir "${dest}" 2>/dev/null || true
+        log "[reserve] No existing dumps to move into ${dest}"
+    fi
+
+    export_database || log "[reserve] Export failed; moved dumps, if any, remain in ${dest}"
+}
+
+reserve_worker() {
+    while true; do
+        sleep "$(seconds_until_reserve_time)"
+
+        if health_check; then
+            log "[reserve] TypeDB healthy at ${TYPEDB_CLIENT_ADDRESS}"
+        else
+            log "[reserve] TypeDB health check FAILED at ${TYPEDB_CLIENT_ADDRESS}"
+        fi
+
+        rotate_and_dump || true
+    done
 }
 
 cleanup() {
@@ -38,112 +139,69 @@ cleanup() {
     fi
     CLEANUP_STARTED=true
 
+    log "Shutdown requested."
+
+    if [ -n "${RESERVE_PID:-}" ]; then
+        kill "${RESERVE_PID}" 2>/dev/null || true
+        wait "${RESERVE_PID}" 2>/dev/null || true
+    fi
+
     export_database || true
+
     if [ -n "${SERVER_PID:-}" ]; then
         kill "${SERVER_PID}" 2>/dev/null || true
         wait "${SERVER_PID}" 2>/dev/null || true
     fi
 }
+
 trap cleanup EXIT
 trap 'cleanup; exit 0' TERM INT
 
-echo "Starting TypeDB server on ${TYPEDB_ADDR}..."
-"${TYPEDB_BIN}" server --server.address "${TYPEDB_ADDR}" >/proc/1/fd/1 2>/proc/1/fd/2 &
+mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}" /var/log/typedb
+
+log "Starting TypeDB server on ${TYPEDB_ADDRESS}; HTTP on ${TYPEDB_HTTP_ADDRESS}; data dir ${TYPEDB_DATA_DIR}..."
+
+"${TYPEDB_BIN}" server \
+    --server.address="${TYPEDB_ADDRESS}" \
+    --server.http.address="${TYPEDB_HTTP_ADDRESS}" \
+    --storage.data-directory="${TYPEDB_DATA_DIR}" \
+    --logging.directory="/var/log/typedb" &
+
 SERVER_PID=$!
 
-HOST="${TYPEDB_ADDR%:*}"
-PORT="${TYPEDB_ADDR##*:}"
-if [ "${HOST}" = "0.0.0.0" ]; then
-    HOST="127.0.0.1"
-fi
+log "Waiting for TypeDB to become ready (${STARTUP_TIMEOUT}s timeout)..."
 
-echo "Waiting for TypeDB to become ready (${STARTUP_TIMEOUT}s timeout)..."
 for i in $(seq 1 "${STARTUP_TIMEOUT}"); do
-    if nc -z "${HOST}" "${PORT}" >/dev/null 2>&1; then
-        break
-    fi
-    if [ "${i}" -eq "${STARTUP_TIMEOUT}" ]; then
-        echo "TypeDB did not start in time."
+    if ! kill -0 "${SERVER_PID}" 2>/dev/null; then
+        log "TypeDB server exited during startup."
+        wait "${SERVER_PID}" 2>/dev/null || true
         exit 1
     fi
+
+    if health_check; then
+        log "TypeDB is ready."
+        break
+    fi
+
+    if [ "${i}" -eq "${STARTUP_TIMEOUT}" ]; then
+        log "TypeDB did not start in time."
+        exit 1
+    fi
+
     sleep 1
 done
-echo "TypeDB is ready."
 
 if [ -e "${SCHEMA_DUMP}" ] && [ -e "${DATA_DUMP}" ]; then
-    echo "Importing database ${DB_NAME} from ${SCHEMA_DUMP} and ${DATA_DUMP}..."
-    if ! "${TYPEDB_BIN}" console $typedb_connect --command "database import ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
-        echo "Import failed (dumps found but could not be imported); continuing."
+    log "Importing database ${DB_NAME} from ${SCHEMA_DUMP} and ${DATA_DUMP}..."
+
+    if ! run_console --command "database import ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}"; then
+        log "Import failed. If database already exists, this is expected; continuing."
     fi
 else
-    echo "Skipping import: dumps missing at ${SCHEMA_DUMP} and/or ${DATA_DUMP}."
+    log "Skipping import: dumps missing at ${SCHEMA_DUMP} and/or ${DATA_DUMP}."
 fi
 
-# --------- резервные копии в /reserve --------- #
-cat >/tmp/typedb_reserve.sh <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-
-TYPEDB_BIN="${TYPEDB_BIN}"
-TYPEDB_ADDR="${HOST}:${PORT}"
-DB_NAME="${DB_NAME}"
-SCHEMA_DUMP="${SCHEMA_DUMP}"
-DATA_DUMP="${DATA_DUMP}"
-RESERVE_DIR="${RESERVE_DIR}"
-
-typedb_connect="--address \${TYPEDB_ADDR} --username admin --password password --tls-disabled"
-RESERVE_BASE_DIR="\$(dirname "\${RESERVE_DIR}")"
-RESERVE_PREFIX="\$(basename "\${RESERVE_DIR}")"
-mkdir -p "\${RESERVE_BASE_DIR}"
-
-health_check() {
-    if "\${TYPEDB_BIN}" console  \${typedb_connect} --command "database list" >/dev/null 2>&1; then
-        echo "[reserve] TypeDB healthy at \${TYPEDB_ADDR}"
-        return 0
-    else
-        echo "[reserve] TypeDB health check FAILED at \${TYPEDB_ADDR}"
-        return 1
-    fi
-}
-
-rotate_and_dump() {
-    TS=\$(date +%Y%m%d%H%M%S)
-    DEST="\${RESERVE_BASE_DIR}/\${RESERVE_PREFIX}_\${TS}"
-
-    echo "[reserve] Removing previous reserve directory at \${RESERVE_DIR}"
-    rm -rf "\${RESERVE_DIR}"
-
-    mkdir -p "\${DEST}"
-    MOVED=false
-    for SRC in "\${SCHEMA_DUMP}" "\${DATA_DUMP}"; do
-        if [ -e "\${SRC}" ]; then
-            mv "\${SRC}" "\${DEST}/"
-            MOVED=true
-        fi
-    done
-    if [ "\${MOVED}" = true ]; then
-        echo "[reserve] Existing dumps moved to \${DEST}"
-    else
-        rmdir "\${DEST}" 2>/dev/null || true
-        echo "[reserve] No existing dumps to move into \${DEST}"
-    fi
-
-    mkdir -p "\$(dirname "\${SCHEMA_DUMP}")" "\$(dirname "\${DATA_DUMP}")"
-    echo "[reserve] Exporting database \${DB_NAME} to \${SCHEMA_DUMP} and \${DATA_DUMP}..."
-    if ! "\${TYPEDB_BIN}" console \${typedb_connect} --command "database export \${DB_NAME} \${SCHEMA_DUMP} \${DATA_DUMP}" >/proc/1/fd/1 2>/proc/1/fd/2; then
-        echo "[reserve] Export failed; keeping moved dumps in \${DEST}"
-    else
-        echo "[reserve] Export completed."
-    fi
-}
-
-while true; do
-    health_check || true
-    rotate_and_dump
-    sleep 3600
-done
-EOF
-chmod +x /tmp/typedb_reserve.sh
-/tmp/typedb_reserve.sh >/proc/1/fd/1 2>/proc/1/fd/2 &
+reserve_worker &
+RESERVE_PID=$!
 
 wait "${SERVER_PID}"
