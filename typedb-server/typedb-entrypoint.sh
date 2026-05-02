@@ -4,6 +4,11 @@ set -euo pipefail
 log() {
     echo "[$(date -Is)] $*"
 }
+database_exists() {
+    run_console --command "database list" \
+        | awk '{print $1}' \
+        | grep -Fxq "${DB_NAME}"
+}
 
 TYPEDB_BIN="${TYPEDB_BIN:-typedb}"
 TYPEDB_ADDRESS="${TYPEDB_ADDRESS:-0.0.0.0:1729}"
@@ -191,11 +196,14 @@ for i in $(seq 1 "${STARTUP_TIMEOUT}"); do
     sleep 1
 done
 
-if [ -e "${SCHEMA_DUMP}" ] && [ -e "${DATA_DUMP}" ]; then
+if database_exists; then
+    log "Skipping import: database ${DB_NAME} already exists."
+elif [ -e "${SCHEMA_DUMP}" ] && [ -e "${DATA_DUMP}" ]; then
     log "Importing database ${DB_NAME} from ${SCHEMA_DUMP} and ${DATA_DUMP}..."
 
     if ! run_console --command "database import ${DB_NAME} ${SCHEMA_DUMP} ${DATA_DUMP}"; then
-        log "Import failed. If database already exists, this is expected; continuing."
+        log "Import failed."
+        exit 1
     fi
 else
     log "Skipping import: dumps missing at ${SCHEMA_DUMP} and/or ${DATA_DUMP}."

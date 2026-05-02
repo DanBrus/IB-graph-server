@@ -22,6 +22,7 @@ RUN set -eux; \
         curl \
         apt-transport-https \
         gpg \
+        netcat-openbsd \
         bash; \
     rm -rf /var/lib/apt/lists/*
 
