@@ -22,7 +22,6 @@ RUN set -eux; \
         curl \
         apt-transport-https \
         gpg \
-        netcat-openbsd \
         bash; \
     rm -rf /var/lib/apt/lists/*
 
@@ -33,6 +32,13 @@ RUN set -eux; \
     echo "deb [signed-by=/usr/share/keyrings/typedb.gpg] https://repo.typedb.com/public/public-release/deb/ubuntu trusty main" \
         > /etc/apt/sources.list.d/typedb.list
 
+RUN set -eux; \
+    printf '%s\n' \
+      'Acquire::Retries "5";' \
+      'Acquire::http::Timeout "120";' \
+      'Acquire::https::Timeout "120";' \
+      > /etc/apt/apt.conf.d/80-retries
+      
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends typedb; \
