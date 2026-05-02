@@ -19,6 +19,7 @@ TYPEDB_PASSWORD="${TYPEDB_PASSWORD:-password}"
 TYPEDB_TLS_DISABLED="${TYPEDB_TLS_DISABLED:-true}"
 TYPEDB_DATA_DIR="${TYPEDB_DATA_DIR:-/var/lib/typedb/data}"
 STARTUP_TIMEOUT="${TYPEDB_STARTUP_TIMEOUT:-60}"
+NPROD="${NPROD:-}"
 
 DB_NAME="${DB_NAME:-tsarstvie-investigation}"
 DUMPS_DIR="${DUMPS_DIR:-/dumps}"
@@ -162,15 +163,25 @@ cleanup() {
 trap cleanup EXIT
 trap 'cleanup; exit 0' TERM INT
 
-mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}" /var/log/typedb
+mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}"
 
 log "Starting TypeDB server on ${TYPEDB_ADDRESS}; HTTP on ${TYPEDB_HTTP_ADDRESS}; data dir ${TYPEDB_DATA_DIR}..."
 
-"${TYPEDB_BIN}" server \
-    --server.address="${TYPEDB_ADDRESS}" \
-    --server.http.address="${TYPEDB_HTTP_ADDRESS}" \
-    --storage.data-directory="${TYPEDB_DATA_DIR}" \
-    --logging.directory="/var/log/typedb" &
+typedb_server_args=(
+    --server.address="${TYPEDB_ADDRESS}"
+    --server.http.address="${TYPEDB_HTTP_ADDRESS}"
+    --storage.data-directory="${TYPEDB_DATA_DIR}"
+)
+
+if [ -n "${NPROD}" ]; then
+    mkdir -p /var/log/typedb
+    typedb_server_args+=(--logging.directory="/var/log/typedb")
+    log "TypeDB file logging enabled because NPROD is set."
+else
+    log "TypeDB file logging disabled. Set NPROD to enable /var/log/typedb logs."
+fi
+
+"${TYPEDB_BIN}" server "${typedb_server_args[@]}" &
 
 SERVER_PID=$!
 

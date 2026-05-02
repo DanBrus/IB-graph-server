@@ -38,7 +38,7 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends typedb; \
     command -v typedb; \
     typedb server --help >/dev/null; \
-    mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}" /var/log/typedb; \
+    mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}"; \
     rm -rf /var/lib/apt/lists/*
 
 COPY typedb-entrypoint.sh /usr/local/bin/typedb-entrypoint.sh
