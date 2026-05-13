@@ -26,13 +26,10 @@ RUN set -eux; \
         ca-certificates; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=typedb-dist /opt/ /opt/
+COPY --from=typedb-dist /opt/typedb-server-linux-* /opt/
 
 RUN set -eux; \
-    TYPEDB_DIST_DIR="$(find /opt -maxdepth 1 -type d -name 'typedb-server-linux-*' | head -n 1)"; \
-    test -n "${TYPEDB_DIST_DIR}"; \
-    test -x "${TYPEDB_DIST_DIR}/typedb"; \
-    ln -s "${TYPEDB_DIST_DIR}/typedb" /usr/local/bin/typedb; \
+    ln -s /opt/typedb-server-linux-*/typedb /usr/local/bin/typedb; \
     command -v typedb; \
     typedb server --help >/dev/null; \
     mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}"
