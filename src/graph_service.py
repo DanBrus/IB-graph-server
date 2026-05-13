@@ -1,6 +1,7 @@
 from functools import wraps
 from typing import List, Optional
 
+from board_schema_config import CURRENT_BOARD_SCHEMA
 from typedb_client import TypeDBClient
 
 from graph_models import (
@@ -84,11 +85,28 @@ class GraphService:
     # --------- ЗАПИСЬ --------- #
 
     @log_api_method_execution
-    def create_version(self, version: str, name: str, description: str) -> dict:
+    def create_version(
+        self,
+        version: str,
+        name: str,
+        description: str,
+        is_published: Optional[bool] = None,
+    ) -> dict:
         """
         Создать пустую версию доски.
         """
-        self.client.graph_by_version_create(version=version, name=name, description=description)
+        create_kwargs = {
+            "version": version,
+            "name": name,
+            "description": description,
+        }
+        # v01_to_v02_migration: one shared schema config controls whether API should pass publication state.
+        if CURRENT_BOARD_SCHEMA.supports_is_published:
+            create_kwargs["is_published"] = (
+                bool(is_published) if is_published is not None else False
+            )
+
+        self.client.graph_by_version_create(**create_kwargs)
         print(f"[GraphService] create version created: {version}")
         return {"status": "ok"}
 
@@ -111,11 +129,23 @@ class GraphService:
         return {"status": "ok"}
 
     @log_api_method_execution
-    def update_graph(self, version: str, nodes, edges):
-        self.client.update_graph(
-            version=version,
-            nodes=nodes,
-            edges=edges,
-        )
+    def update_graph(
+        self,
+        version: str,
+        nodes,
+        edges,
+        is_published: Optional[bool] = None,
+    ):
+        update_kwargs = {
+            "version": version,
+            "nodes": nodes,
+            "edges": edges,
+        }
+        # v01_to_v02_migration: update_graph can forward publication state only when the active schema supports it.
+        if CURRENT_BOARD_SCHEMA.supports_is_published:
+            update_kwargs["is_published"] = is_published
+            print(f"[GraphService] update_graph: {CURRENT_BOARD_SCHEMA.supports_is_published}")
+
+        self.client.update_graph(**update_kwargs)
         print(f"[GraphService] board version got update: {version}")
         return {"status": "ok"}

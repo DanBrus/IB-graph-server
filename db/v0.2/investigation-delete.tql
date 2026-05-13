@@ -1,0 +1,6 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $rel isa investigation-has-version, links (investigation: $inv, board: $bv) ;
+delete
+  $rel;
+  $inv;

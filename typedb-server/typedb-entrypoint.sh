@@ -283,6 +283,7 @@ if ! startup_import; then
 fi
 
 touch "${STARTUP_READY_FILE}"
+log "Startup completed; readiness file created at ${STARTUP_READY_FILE}."
 
 reserve_worker &
 RESERVE_PID=$!

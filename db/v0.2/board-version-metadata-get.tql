@@ -1,0 +1,11 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+fetch {{
+  "investigation-name": $inv.name,
+  "version": $bv.version,
+  "board-name": $bv.name,
+  "description": $bv.description,
+  "is_published": $bv.is_published
+}};

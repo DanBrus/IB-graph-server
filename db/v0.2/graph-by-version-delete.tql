@@ -1,0 +1,30 @@
+# 1) Удаляем все рёбра этой версии доски
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  $rel_edge isa board-has-edge, links (board: $bv, member-edge: $e) ;
+delete
+  $rel_edge;
+  $e;
+
+# 2) Удаляем все ноды этой версии доски
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+
+  $rel_node isa board-has-node, links (board: $bv, member-node: $n);
+delete
+  $rel_node;
+  $n;
+
+# 3) Удаляем связь расследования с версией и саму версию доски
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  $rel_bv isa investigation-has-version, links (investigation: $inv, board: $bv) ;
+delete
+  $rel_bv;
+  $bv;

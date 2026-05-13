@@ -1,0 +1,6 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $bv isa board-version, has version "{version}";
+  investigation-has-version(investigation: $inv, board: $bv);
+update
+  $bv has is_published {is_published};

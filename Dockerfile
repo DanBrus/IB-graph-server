@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TYPEDB_TLS_ENABLED="false" \
     TYPEDB_TLS_CA="" \
     TYPEDB_DB_NAME="tsarstvie-investigation" \
-    BOARD_SCHEMA_VERSION="v0.1" \
+    BOARD_SCHEMA_VERSION="v0.2" \
     INVESTIGATION_NAME="tsarstvie"
 
 WORKDIR /app

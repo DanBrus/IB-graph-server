@@ -1,0 +1,4 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+update
+  $inv has active_version "{version}";

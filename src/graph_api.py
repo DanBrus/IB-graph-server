@@ -47,11 +47,14 @@ def update_board(payload: BoardDTO):
     Обновление существующей версии доски:
     - payload.version — обязательная версия
     - payload.nodes / payload.edges — новое состояние графа
+    - payload.is_published — опциональное состояние публикации для v0.2
     """
+    # v01_to_v02_migration: keep the same API path and let the shared schema switch decide whether this field matters.
     result = service.update_graph(
         version=payload.version,
         nodes=payload.nodes,
         edges=payload.edges,
+        is_published=payload.is_published,
     )
     return BasicResponseDTO(**result)
 
@@ -138,7 +141,13 @@ def create_version(payload: VersionDTO):
     """
     Создать пустую версию доски.
     """
-    result = service.create_version(version=payload.version, name=payload.name, description=payload.description)
+    # v01_to_v02_migration: VersionDTO now carries optional is_published for v0.2, but v0.1 stays compatible.
+    result = service.create_version(
+        version=payload.version,
+        name=payload.name,
+        description=payload.description,
+        is_published=payload.is_published,
+    )
     return BasicResponseDTO(**result)
 
 @app.delete("/graph/versions", response_model=BasicResponseDTO)

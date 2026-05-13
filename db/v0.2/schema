@@ -1,0 +1,62 @@
+define
+
+attribute active_version,
+ value string;
+attribute version,
+ value string;
+attribute node_id,
+ value integer;
+attribute edge_id,
+ value integer;
+attribute name,
+ value string;
+attribute node_type,
+ value string;
+attribute is_published,
+ value boolean;
+attribute pos_x,
+ value double;
+attribute pos_y,
+ value double;
+attribute picture_path,
+ value string;
+attribute description,
+ value string;
+entity investigation,
+  owns active_version @card(0..1),
+  owns name @card(1..1),
+  plays investigation-has-version:investigation;
+entity board-version,
+  owns description @card(1..1),
+  owns is_published @card(1..1),
+  owns name @card(1..1),
+  owns version @card(1..1),
+  plays board-has-edge:board,
+  plays board-has-node:board,
+  plays investigation-has-version:board;
+entity node,
+  owns description,
+  owns name @card(1..1),
+  owns node_id @card(1..1),
+  owns node_type @card(0..1),
+  owns picture_path,
+  owns pos_x @card(1..1),
+  owns pos_y @card(1..1),
+  plays board-has-node:member-node,
+  plays edge:endpoint-1,
+  plays edge:endpoint-2;
+relation investigation-has-version,
+  relates board,
+  relates investigation;
+relation board-has-node,
+  relates board,
+  relates member-node;
+relation edge,
+  relates endpoint-1,
+  relates endpoint-2,
+  owns description @card(1..1),
+  owns edge_id @card(1..1),
+  plays board-has-edge:member-edge;
+relation board-has-edge,
+  relates board,
+  relates member-edge;
