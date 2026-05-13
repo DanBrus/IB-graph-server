@@ -22,6 +22,10 @@ from typedb.driver import (
     DriverOptions,
     TransactionType,
 )
+try:
+    from typedb.driver import DriverTlsConfig
+except ImportError:
+    DriverTlsConfig = None  # type: ignore[assignment]
 
 from typedb.api.answer.query_answer import QueryAnswer  # type: ignore[import]
 
@@ -75,6 +79,33 @@ QUERIES_DIR = TEMPLATES_ROOT / BOARD_SCHEMA_VERSION
 DEFAULT_BOOTSTRAP_BOARD_VERSION = "0.0"
 DEFAULT_BOOTSTRAP_BOARD_NAME = "Basic board"
 DEFAULT_BOOTSTRAP_BOARD_DESCRIPTION = "This board has created to fill empty database"
+
+
+def build_driver_options(*, tls_enabled: bool, tls_ca: str | None) -> DriverOptions:
+    """
+    Собирает DriverOptions, поддерживая оба варианта TypeDB Python driver API:
+      - старый: DriverOptions(is_tls_enabled=..., tls_root_ca_path=...)
+      - новый: DriverOptions(DriverTlsConfig...)
+    """
+    tls_ca_for_driver = tls_ca or None
+
+    try:
+        return DriverOptions(
+            is_tls_enabled=tls_enabled,
+            tls_root_ca_path=tls_ca_for_driver,
+        )
+    except TypeError:
+        if DriverTlsConfig is None:
+            raise
+
+        if not tls_enabled:
+            tls_config = DriverTlsConfig.disabled()
+        elif tls_ca_for_driver is None:
+            tls_config = DriverTlsConfig.enabled_with_native_root_ca()
+        else:
+            tls_config = DriverTlsConfig.enabled_with_root_ca(tls_ca_for_driver)
+
+        return DriverOptions(tls_config)
 
 
 def resolve_template_layout(
@@ -143,10 +174,9 @@ class TypeDBClient:
         # TypeDB Driver
         try:
             credentials = Credentials(username, password)
-            tls_ca_for_driver = tls_ca or None
-            options = DriverOptions(
-                is_tls_enabled=tls_enabled,
-                tls_root_ca_path=tls_ca_for_driver,
+            options = build_driver_options(
+                tls_enabled=tls_enabled,
+                tls_ca=tls_ca,
             )
             self.driver: Any = TypeDB.driver(typedb_address, credentials, options)
         except Exception as e:

@@ -1,6 +1,7 @@
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND="noninteractive"
+ARG TYPEDB_VERSION="3.7.0"
 
 ENV TYPEDB_BIN="typedb" \
     TYPEDB_ADDRESS="0.0.0.0:1729" \
@@ -41,7 +42,8 @@ RUN set -eux; \
       
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends typedb; \
+    apt-get install -y --no-install-recommends "typedb=${TYPEDB_VERSION}"; \
+    dpkg-query -W -f='${Version}\n' typedb | grep -Fx "${TYPEDB_VERSION}"; \
     command -v typedb; \
     typedb server --help >/dev/null; \
     mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}"; \
