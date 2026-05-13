@@ -1,7 +1,3 @@
-ARG TYPEDB_VERSION=3.7.0
-
-FROM typedb/typedb:${TYPEDB_VERSION} AS typedb-dist
-
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND="noninteractive"
@@ -22,17 +18,34 @@ ENV TYPEDB_BIN="typedb" \
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        bash \
-        ca-certificates; \
+        ca-certificates \
+        curl \
+        apt-transport-https \
+        gpg \
+        bash; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=typedb-dist /opt/typedb-server-linux-* /opt/
+RUN set -eux; \
+    mkdir -p /usr/share/keyrings; \
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x17507562824cfdcc" \
+        | gpg --dearmor -o /usr/share/keyrings/typedb.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/typedb.gpg] https://repo.typedb.com/public/public-release/deb/ubuntu trusty main" \
+        > /etc/apt/sources.list.d/typedb.list
 
 RUN set -eux; \
-    ln -s /opt/typedb-server-linux-*/typedb /usr/local/bin/typedb; \
+    printf '%s\n' \
+      'Acquire::Retries "5";' \
+      'Acquire::http::Timeout "120";' \
+      'Acquire::https::Timeout "120";' \
+      > /etc/apt/apt.conf.d/80-retries
+      
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends typedb; \
     command -v typedb; \
     typedb server --help >/dev/null; \
-    mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}"
+    mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}"; \
+    rm -rf /var/lib/apt/lists/*
 
 COPY typedb-entrypoint.sh /usr/local/bin/typedb-entrypoint.sh
 RUN chmod +x /usr/local/bin/typedb-entrypoint.sh
