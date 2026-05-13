@@ -10,8 +10,7 @@ database_exists() {
         | grep -Fxq "${DB_NAME}"
 }
 
-TYPEDB_SERVER_BIN="${TYPEDB_SERVER_BIN:-/usr/local/bin/typedb-server-pinned}"
-TYPEDB_CONSOLE_BIN="${TYPEDB_CONSOLE_BIN:-typedb}"
+TYPEDB_BIN="${TYPEDB_BIN:-typedb}"
 TYPEDB_ADDRESS="${TYPEDB_ADDRESS:-0.0.0.0:1729}"
 TYPEDB_HTTP_ADDRESS="${TYPEDB_HTTP_ADDRESS:-0.0.0.0:8000}"
 TYPEDB_CLIENT_ADDRESS="${TYPEDB_CLIENT_ADDRESS:-127.0.0.1:1729}"
@@ -31,17 +30,8 @@ RESERVE_COPY_TIME="${RESERVE_COPY_TIME:-12:00}"
 RESERVE_DIR="${RESERVE_DIR:-${DUMPS_DIR}/reserve}"
 STARTUP_READY_FILE="${STARTUP_READY_FILE:-/tmp/typedb-startup-complete}"
 
-resolve_bin() {
-    local bin_path="$1"
-    if [ -x "${bin_path}" ]; then
-        echo "${bin_path}"
-        return 0
-    fi
-    command -v "${bin_path}"
-}
-
-TYPEDB_SERVER_BIN="$(resolve_bin "${TYPEDB_SERVER_BIN}")"
-TYPEDB_CONSOLE_BIN="$(resolve_bin "${TYPEDB_CONSOLE_BIN}")"
+TYPEDB_BIN_RESOLVED="$(command -v "${TYPEDB_BIN}")"
+TYPEDB_BIN="${TYPEDB_BIN_RESOLVED}"
 EXPORT_ON_EXIT=true
 
 typedb_connect=(
@@ -55,7 +45,7 @@ if [ "${TYPEDB_TLS_DISABLED}" = "true" ]; then
 fi
 
 run_console() {
-    "${TYPEDB_CONSOLE_BIN}" console "${typedb_connect[@]}" "$@"
+    "${TYPEDB_BIN}" console "${typedb_connect[@]}" "$@"
 }
 
 health_check() {
@@ -247,8 +237,6 @@ mkdir -p "${TYPEDB_DATA_DIR}" "${DUMPS_DIR}" "${RESERVE_DIR}" "$(dirname "${STAR
 rm -f "${STARTUP_READY_FILE}"
 
 log "Starting TypeDB server on ${TYPEDB_ADDRESS}; HTTP on ${TYPEDB_HTTP_ADDRESS}; data dir ${TYPEDB_DATA_DIR}..."
-log "TypeDB server binary: ${TYPEDB_SERVER_BIN}"
-log "TypeDB console binary: ${TYPEDB_CONSOLE_BIN}"
 
 typedb_server_args=(
     --server.address="${TYPEDB_ADDRESS}"
@@ -264,7 +252,7 @@ else
     log "TypeDB file logging disabled. Set NPROD to enable /var/log/typedb logs."
 fi
 
-"${TYPEDB_SERVER_BIN}" server "${typedb_server_args[@]}" &
+"${TYPEDB_BIN}" server "${typedb_server_args[@]}" &
 
 SERVER_PID=$!
 
