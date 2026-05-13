@@ -324,7 +324,7 @@ def build_clients(
                 "Python module 'typedb' is not available in the current interpreter.\n"
                 "Install project dependencies for the same Python you use to run migration.\n"
                 f"Current interpreter: {sys.executable}\n"
-                "Expected package: typedb-driver==3.10.0\n"
+                "Expected package: typedb-driver==3.7.0\n"
                 "Example:\n"
                 "  python3 -m venv .venv\n"
                 "  source .venv/bin/activate\n"
