@@ -1,0 +1,17 @@
+# EdgeDTO rows for a single board (Song view)
+# Python format args: {board_id}
+# Returns one row per (edge x optional chunk)
+match
+$board isa board, has board_id "{board_id}";
+(board: $board, member-edge: $edge) isa board-has-edge;
+$edge isa edge,
+  has edge_id $edge_id;
+(endpoint-1: $node_1, endpoint-2: $node_2) isa $edge;
+$node_1 has global_id $id_card_1;
+$node_2 has global_id $id_card_2;
+optional {
+  (edge-owner: $edge, chunk: $chunk) isa edge-has-chunk;
+  $chunk isa info-chunk, has chunk_text $text_chunk;
+  optional { $chunk has chunk_priority $chunk_priority; };
+};
+get $edge_id, $id_card_1, $id_card_2, $text_chunk, $chunk_priority;

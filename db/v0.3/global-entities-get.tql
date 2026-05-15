@@ -1,0 +1,26 @@
+# Global CardDTO seed from canonical entities (excluding merged-away entities)
+# Python format args: none
+# Returns one row per (entity x optional picture_path x optional chunk x optional source-node)
+# NOTE: position is intentionally omitted and expected to be computed in post-processing.
+match
+$entity isa canonical-entity,
+  has entity_id $entity_id,
+  has name $card_name;
+optional { $entity has entity_type $card_type; };
+optional { $entity has picture_path $picture_path; };
+not {
+  (source: $entity, target: $any_target) isa entity-entity-alias;
+};
+optional {
+  {
+    (entity: $entity, node: $node) isa entity-has-node;
+  } or {
+    (source: $merged_in, target: $entity) isa entity-entity-alias;
+    (entity: $merged_in, node: $node) isa entity-has-node;
+  };
+  (node-owner: $node, chunk: $chunk) isa node-has-chunk;
+  $chunk isa info-chunk, has chunk_text $text_chunk;
+  optional { $chunk has timecode $chunk_board_id; };
+  optional { $chunk has chunk_priority $chunk_priority; };
+};
+get $entity_id, $card_name, $card_type, $picture_path, $text_chunk, $chunk_board_id, $chunk_priority;

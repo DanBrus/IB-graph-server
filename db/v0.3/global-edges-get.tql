@@ -1,0 +1,16 @@
+# Global EdgeDTO raw list (all edges in the investigation/database)
+# Python format args: none
+# NOTE: IDs here are node IDs; map them to entity IDs via global-nodes-by-entities-get.tql
+match
+$edge isa edge,
+  has edge_id $edge_id;
+(endpoint-1: $node_1, endpoint-2: $node_2) isa $edge;
+$node_1 has global_id $id_card_1;
+$node_2 has global_id $id_card_2;
+optional {
+  (edge-owner: $edge, chunk: $chunk) isa edge-has-chunk;
+  $chunk isa info-chunk, has chunk_text $text_chunk;
+  optional { $chunk has timecode $chunk_board_id; };
+  optional { $chunk has chunk_priority $chunk_priority; };
+};
+get $edge_id, $id_card_1, $id_card_2, $text_chunk, $chunk_board_id, $chunk_priority;

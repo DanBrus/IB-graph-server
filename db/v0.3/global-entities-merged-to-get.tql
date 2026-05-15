@@ -1,0 +1,7 @@
+# EntitiesMergedTo DTO: source entity -> target entity (merged-into direction)
+# Python format args: none
+match
+(source: $source, target: $target) isa entity-entity-alias;
+$source isa canonical-entity, has entity_id $source_entity_id;
+$target isa canonical-entity, has entity_id $target_entity_id;
+get $source_entity_id, $target_entity_id;
