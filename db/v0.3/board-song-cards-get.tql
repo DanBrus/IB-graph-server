@@ -1,0 +1,23 @@
+# CardDTO rows for a single board (Song view)
+# Python format args: {board_id}
+# Returns one row per (node x optional picture_path x optional chunk)
+match
+$board isa board, has board_id "{board_id}";
+(board: $board, member-node: $node) isa board-has-node;
+$node isa node,
+  has global_id $card_id;
+(entity: $entity, node: $node) isa entity-has-node;
+$entity isa canonical-entity,
+  has name $card_name;
+optional {
+  $entity has entity_type $card_type;
+};
+optional {
+  $entity has picture_path $picture_path;
+};
+optional {
+  (node-owner: $node, chunk: $chunk) isa node-has-chunk;
+  $chunk isa info-chunk, has chunk_text $text_chunk;
+  optional { $chunk has chunk_priority $chunk_priority; };
+};
+get $card_id, $card_name, $card_type, $picture_path, $text_chunk, $chunk_priority;

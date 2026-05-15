@@ -1,0 +1,14 @@
+# DTONodesByEntities: node -> entity mapping with merge-to closure (1 hop)
+# Python format args: none
+# Returns direct mapping and merged-to mapping in one resultset.
+match
+$node isa node, has global_id $node_id;
+{
+  (entity: $entity, node: $node) isa entity-has-node;
+  $entity has entity_id $entity_id;
+} or {
+  (entity: $entity, node: $node) isa entity-has-node;
+  (source: $entity, target: $merged_to) isa entity-entity-alias;
+  $merged_to has entity_id $entity_id;
+};
+get $node_id, $entity_id;

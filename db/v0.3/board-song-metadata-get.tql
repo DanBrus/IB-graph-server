@@ -1,0 +1,9 @@
+# BoardDTO metadata for a single board (Song view)
+# Python format args: {board_id}
+match
+$board isa board,
+  has board_id "{board_id}",
+  has name $board_name,
+  has description $board_description,
+  has is_published $board_is_published;
+get $board, $board_name, $board_description, $board_is_published;
