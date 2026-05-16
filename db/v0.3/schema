@@ -2,103 +2,111 @@ define
 
 attribute name,
  value string;
-attribute board_id,
+attribute b_id,
  value string;
 attribute description,
  value string;
 attribute is_published,
  value boolean;
-attribute entity_id,
+attribute en_id,
  value string;
 attribute entity_type,
  value string;
 attribute picture_path,
  value string;
-attribute global_id,
+attribute n_id,
  value integer;
 attribute pos_x,
  value double;
 attribute pos_y,
  value double;
-attribute edge_id,
+attribute ed_id,
  value integer;
-attribute chunk_text,
- value string;
 attribute timecode,
  value string;
 attribute chunk_priority,
- value long;
+ value integer;
 
 entity investigation,
-  owns name @card(1..1),
-  plays inv-has-board:investigation;
+  owns name @key,
+  plays inv-has-board:investigation @card(0..),
+  plays inv-has-entity:investigation @card(0..);
 
 entity board,
-  owns board_id @card(1..1),
+  owns b_id @key,
   owns name @card(1..1),
   owns description @card(1..1),
   owns is_published @card(1..1),
-  plays inv-has-board:board,
-  plays board-has-node:board,
-  plays board-has-edge:board;
+  plays inv-has-board:board @card(1..1),
+  plays board-has-node:board @card(0..),
+  plays board-has-edge:board @card(0..);
+
+relation inv-has-board,
+  relates investigation @card(1..1),
+  relates board @card(1..1);
 
 entity canonical-entity,
-  owns entity_id @card(1..1),
+  owns en_id @key,
   owns name @card(1..1),
   owns entity_type @card(0..1),
   owns picture_path,
-  plays entity-has-node:entity,
-  plays entity-entity-alias:source,
-  plays entity-entity-alias:target;
+  plays inv-has-entity:entity @card(1..1),
+  plays entity-has-node:entity @card(0..),
+  plays entity-merged-to:source @card(0..1),
+  plays entity-merged-to:target @card(0..);
+
+relation inv-has-entity,
+  relates investigation @card(1..1),
+  relates entity @card(1..1);
+
+relation entity-merged-to,
+  relates source @card(1..1),
+  relates target @card(1..1);
 
 entity node,
-  owns global_id @card(1..1),
+  owns n_id @key,
+  owns description,
   owns pos_x @card(1..1),
   owns pos_y @card(1..1),
-  plays board-has-node:member-node,
-  plays edge:endpoint-1,
-  plays edge:endpoint-2,
-  plays entity-has-node:node,
-  plays node-has-chunk:node-owner;
-
-entity info-chunk,
-  owns chunk_text @card(1..1),
-  owns timecode @card(0..1),
-  owns chunk_priority @card(0..1),
-  plays node-has-chunk:chunk,
-  plays edge-has-chunk:chunk;
-
-relation inv-has-board,
-  relates investigation,
-  relates board;
+  plays board-has-node:member-node @card(1..1),
+  plays edge:endpoint-1 @card(0..),
+  plays edge:endpoint-2 @card(0..),
+  plays entity-has-node:node @card(1..1),
+  plays node-has-chunk:node-owner @card(0..);
 
 relation board-has-node,
-  relates board,
-  relates member-node;
+  relates board @card(1..1),
+  relates member-node @card(1..1);
 
 relation edge,
-  relates endpoint-1,
-  relates endpoint-2,
-  owns edge_id @card(1..1),
-  plays board-has-edge:member-edge,
-  plays edge-has-chunk:edge-owner;
+  relates endpoint-1 @card(1..1),
+  relates endpoint-2 @card(1..1),
+  owns ed_id @key,
+  plays board-has-edge:member-edge @card(1..1),
+  plays edge-has-chunk:edge-owner @card(0..);
 
 relation board-has-edge,
-  relates board,
-  relates member-edge;
+  relates board @card(1..1),
+  relates member-edge @card(1..1);
 
-relation node-has-chunk,
-  relates node-owner,
-  relates chunk;
+entity text-chunk,
+  owns description @card(1..1),
+  owns chunk_priority @card(1..1),
+  owns timecode @card(1..1),
+  plays chunk-has-owner:chunk @card(1..1);
 
-relation edge-has-chunk,
-  relates edge-owner,
-  relates chunk;
+# Shared parent relation lets us enforce "exactly one owner relation"
+# across both specialised chunk-owner relations.
+relation chunk-has-owner @abstract,
+  relates owner @card(1..1),
+  relates chunk @card(1..1);
+
+relation node-has-chunk sub chunk-has-owner,
+  relates node-owner as owner;
+
+relation edge-has-chunk sub chunk-has-owner,
+  relates edge-owner as owner;
 
 relation entity-has-node,
-  relates entity,
-  relates node;
-
-relation entity-entity-alias,
-  relates source,
-  relates target;
+  relates entity @card(1..1),
+  relates node @card(1..1);
