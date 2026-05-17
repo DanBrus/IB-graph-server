@@ -25,14 +25,12 @@ class BoardDTO(BaseModel):
     version: str
     description: Optional[str] = None
     board_name: Optional[str] = None
-    # v01_to_v02_migration: keep the new v0.2 field optional so v0.1 responses remain valid.
     is_published: Optional[bool] = None
 
 class VersionDTO(BaseModel):
     version: str
     name: str
     description: str
-    # v01_to_v02_migration: the API can expose v0.2 publication state without breaking v0.1 payloads.
     is_published: Optional[bool] = None
 
 class ActiveVersionDTO(BaseModel):

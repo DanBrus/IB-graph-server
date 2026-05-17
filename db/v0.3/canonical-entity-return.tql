@@ -4,25 +4,33 @@ fetch {{
   "en_id": $entity.en_id,
   "name": $entity.name,
   "entity_type": $entity.entity_type,
-  "picture_path": $entity.picture_path,
+  "picture_paths": [
+    match
+      $entity has picture_path $picture_path;
+    return {{ $picture_path }};
+  ],
   "investigation_name": (
     match
-      inv-has-entity(investigation: $inv, entity: $entity);
-    return first $inv.name;
+      inv-has-entity(investigation: $inv, can-entity: $entity);
+      $inv has name $inv_name;
+    return first $inv_name;
   ),
   "node_ids": [
     match
-      entity-has-node(entity: $entity, node: $node);
-    return {{ $node.n_id }};
+      entity-has-node(can-entity: $entity, node: $node);
+      $node has n_id $node_n_id;
+    return {{ $node_n_id }};
   ],
   "merged_to_en_ids": [
     match
       entity-merged-to(source: $entity, target: $target);
-    return {{ $target.en_id }};
+      $target has en_id $target_en_id;
+    return {{ $target_en_id }};
   ],
   "merged_from_en_ids": [
     match
       entity-merged-to(source: $source, target: $entity);
-    return {{ $source.en_id }};
+      $source has en_id $source_en_id;
+    return {{ $source_en_id }};
   ]
 }};

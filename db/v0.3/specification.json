@@ -80,7 +80,7 @@
   {
     "operation": "canonical-entity-create",
     "file": "canonical-entity-create.tql",
-    "params": ["investigation_name", "en_id", "name"],
+    "params": ["investigation_name", "en_id", "name", "entity_type"],
     "output": null
   },
   {
@@ -134,7 +134,7 @@
   {
     "operation": "node-update",
     "file": "node-update.tql",
-    "params": ["n_id", "new_n_id", "new_pos_x", "new_pos_y", "new_description"],
+    "params": ["n_id", "new_n_id", "new_pos_x", "new_pos_y"],
     "output": null
   },
   {

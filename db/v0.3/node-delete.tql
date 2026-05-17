@@ -40,7 +40,7 @@ end;
 
 match
   $node isa node, has n_id {n_id};
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   $board-link isa board-has-node(board: $board, member-node: $node);
 delete
   $entity-link;

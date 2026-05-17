@@ -2,6 +2,7 @@
 
 import json
 import os
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -351,7 +352,7 @@ def test_project_v03_templates_load_and_format() -> None:
     board_create = driver.get_operation(
         "board-create",
         investigation_name='Case "A"',
-        b_id=10.5,
+        b_id=Decimal("10.5"),
         name='Board "Main"',
         description="Primary\\board",
         is_published="true",
@@ -359,6 +360,7 @@ def test_project_v03_templates_load_and_format() -> None:
     assert '\\"' in board_create
     assert "\\\\" in board_create
     assert "inv-has-board" in board_create
+    assert "10.5dec" in board_create
 
     find_other_node = driver.get_operation(
         "find-node-by-edge-and-known-node",
@@ -375,10 +377,11 @@ def test_project_v03_templates_load_and_format() -> None:
     assert investigation_delete.count("end;") == 9
     assert "distinct;" in investigation_delete
 
-    board_return = driver.get_operation("board-return", b_id=1.0)
+    board_return = driver.get_operation("board-return", b_id=Decimal("1.0"))
     assert "fetch {" in board_return
     assert '"node_ids": [' in board_return
     assert '"edge_ids": [' in board_return
+    assert "1.0dec" in board_return
 
     return_chunks = driver.get_operation(
         "return-all-text-chunks-in-edge",

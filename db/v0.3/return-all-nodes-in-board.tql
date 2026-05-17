@@ -6,13 +6,13 @@ fetch {{
       board-has-node(board: $board, member-node: $node);
     fetch {{
       "n_id": $node.n_id,
-      "description": $node.description,
       "pos_x": $node.pos_x,
       "pos_y": $node.pos_y,
       "entity_en_id": (
         match
-          entity-has-node(entity: $entity, node: $node);
-        return first $entity.en_id;
+          entity-has-node(can-entity: $entity, node: $node);
+          $entity has en_id $entity_en_id;
+        return first $entity_en_id;
       )
     }};
   ]

@@ -5,11 +5,13 @@ fetch {{
   "board_ids": [
     match
       inv-has-board(investigation: $inv, board: $board);
-    return {{ $board.b_id }};
+      $board has b_id $board_b_id;
+    return {{ $board_b_id }};
   ],
   "canonical_entity_ids": [
     match
-      inv-has-entity(investigation: $inv, entity: $entity);
-    return {{ $entity.en_id }};
+      inv-has-entity(investigation: $inv, can-entity: $entity);
+      $entity has en_id $entity_en_id;
+    return {{ $entity_en_id }};
   ]
 }};

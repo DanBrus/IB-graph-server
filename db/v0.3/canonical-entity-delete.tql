@@ -18,7 +18,7 @@ end;
 
 match
   $entity isa canonical-entity, has en_id "{en_id}";
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   {{
     $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
   }} or {{
@@ -34,7 +34,7 @@ end;
 
 match
   $entity isa canonical-entity, has en_id "{en_id}";
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   {{
     $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
   }} or {{
@@ -50,7 +50,7 @@ end;
 
 match
   $entity isa canonical-entity, has en_id "{en_id}";
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   $node-link isa node-has-chunk(node-owner: $node, chunk: $chunk);
 select $node-link, $chunk;
 distinct;
@@ -61,7 +61,7 @@ end;
 
 match
   $entity isa canonical-entity, has en_id "{en_id}";
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   $board-node-link isa board-has-node(board: $board, member-node: $node);
 select $entity-link, $board-node-link, $node;
 distinct;
@@ -73,7 +73,7 @@ end;
 
 match
   $entity isa canonical-entity, has en_id "{en_id}";
-  $inv-link isa inv-has-entity(investigation: $inv, entity: $entity);
+  $inv-link isa inv-has-entity(investigation: $inv, can-entity: $entity);
 delete
   $inv-link;
   $entity;

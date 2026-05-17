@@ -8,11 +8,13 @@ fetch {{
   "node_n_id": (
     match
       node-has-chunk(node-owner: $node, chunk: $chunk);
-    return first $node.n_id;
+      $node has n_id $node_n_id;
+    return first $node_n_id;
   ),
   "edge_ed_id": (
     match
       edge-has-chunk(edge-owner: $edge, chunk: $chunk);
-    return first $edge.ed_id;
+      $edge has ed_id $edge_ed_id;
+    return first $edge_ed_id;
   )
 }};

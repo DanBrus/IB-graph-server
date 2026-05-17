@@ -1,7 +1,7 @@
 match
   $inv isa investigation, has name "{investigation_name}";
   $entity isa canonical-entity, has name "{name}";
-  inv-has-entity(investigation: $inv, entity: $entity);
+  inv-has-entity(investigation: $inv, can-entity: $entity);
 fetch {{
   "en_id": $entity.en_id
 }};

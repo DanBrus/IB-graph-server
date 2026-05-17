@@ -3,7 +3,7 @@ define
 attribute name,
  value string;
 attribute b_id,
- value double;
+ value decimal;
 attribute description,
  value string;
 attribute is_published,
@@ -28,46 +28,29 @@ attribute timecode,
  value string;
 attribute chunk_priority,
  value integer;
-
 entity investigation,
   owns name @key,
   plays inv-has-board:investigation @card(0..),
   plays inv-has-entity:investigation @card(0..);
-
 entity board,
   owns b_id @key,
-  owns name @card(1..1),
   owns description @card(1..1),
   owns is_published @card(1..1),
-  plays inv-has-board:board @card(1..1),
+  owns name @card(1..1),
+  plays board-has-edge:board @card(0..),
   plays board-has-node:board @card(0..),
-  plays board-has-edge:board @card(0..);
-
-relation inv-has-board,
-  relates investigation @card(1..1),
-  relates board @card(1..1);
-
+  plays inv-has-board:board @card(1..1);
 entity canonical-entity,
   owns en_id @key,
+  owns entity_type @card(1..1),
   owns name @card(1..1),
-  owns entity_type @card(0..1),
-  owns picture_path,
-  plays inv-has-entity:entity @card(1..1),
-  plays entity-has-node:entity @card(0..),
+  owns picture_path @card(0..),
+  plays entity-has-node:can-entity @card(0..),
   plays entity-merged-to:source @card(0..1),
-  plays entity-merged-to:target @card(0..);
-
-relation inv-has-entity,
-  relates investigation @card(1..1),
-  relates entity @card(1..1);
-
-relation entity-merged-to,
-  relates source @card(1..1),
-  relates target @card(1..1);
-
+  plays entity-merged-to:target @card(0..),
+  plays inv-has-entity:can-entity @card(1..1);
 entity node,
   owns n_id @key,
-  owns description,
   owns pos_x @card(1..1),
   owns pos_y @card(1..1),
   plays board-has-node:member-node @card(1..1),
@@ -75,41 +58,42 @@ entity node,
   plays edge:endpoint-2 @card(0..),
   plays entity-has-node:node @card(1..1),
   plays node-has-chunk:node-owner @card(0..);
-
+entity text-chunk,
+  owns c_id @key,
+  owns chunk_priority @card(1..1),
+  owns description @card(1..1),
+  owns timecode @card(1..1),
+  plays chunk-has-owner:chunk @card(1..1);
+relation inv-has-board,
+  relates board @card(1..1),
+  relates investigation @card(1..1);
+relation inv-has-entity,
+  relates can-entity @card(1..1),
+  relates investigation @card(1..1);
+relation entity-merged-to,
+  relates source @card(1..1),
+  relates target @card(1..1);
 relation board-has-node,
   relates board @card(1..1),
   relates member-node @card(1..1);
-
 relation edge,
   relates endpoint-1 @card(1..1),
   relates endpoint-2 @card(1..1),
   owns ed_id @key,
   plays board-has-edge:member-edge @card(1..1),
   plays edge-has-chunk:edge-owner @card(0..);
-
 relation board-has-edge,
   relates board @card(1..1),
   relates member-edge @card(1..1);
-
-entity text-chunk,
-  owns c_id @key,
-  owns description @card(1..1),
-  owns chunk_priority @card(1..1),
-  owns timecode @card(1..1),
-  plays chunk-has-owner:chunk @card(1..1);
-
-# Shared parent relation lets us enforce "exactly one owner relation"
-# across both specialised chunk-owner relations.
 relation chunk-has-owner @abstract,
-  relates owner @card(1..1),
-  relates chunk @card(1..1);
-
-relation node-has-chunk sub chunk-has-owner,
+  relates chunk @card(1..1),
+  relates owner @card(1..1);
+relation node-has-chunk,
+  sub chunk-has-owner,
   relates node-owner as owner;
-
-relation edge-has-chunk sub chunk-has-owner,
+relation edge-has-chunk,
+  sub chunk-has-owner,
   relates edge-owner as owner;
-
 relation entity-has-node,
-  relates entity @card(1..1),
+  relates can-entity @card(1..1),
   relates node @card(1..1);

@@ -145,7 +145,12 @@ def load_migration_callable(script_path: Path) -> MigrationCallable:
         raise MigrationWorkflowError(f"Failed to load migration script: {script_path}")
 
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(spec.name, None)
+        raise
 
     migrate_callable = getattr(module, "migrate", None)
     if not callable(migrate_callable):

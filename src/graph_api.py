@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from graph_models import (
@@ -11,7 +11,7 @@ from graph_models import (
     VersionDTO,
     ActiveVersionDTO,
 )
-from graph_service import GraphService
+from graph_service import BoardVersionResolutionError, GraphService
 
 
 service = GraphService()
@@ -35,35 +35,35 @@ app.add_middleware(
 def get_board(version: Optional[str] = Query(None)):
     """
     Доска расследований целиком:
-    - без version -> актуальная версия
-    - с version -> конкретная версия
+    - без version -> доска с максимальным b_id
+    - с version -> доска по указанному b_id
     """
-    return service.get_board(version=version)
+    try:
+        return service.get_board(version=version)
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @app.put("/graph/board", response_model=BasicResponseDTO)
 def update_board(payload: BoardDTO):
     """
-    Обновление существующей версии доски:
-    - payload.version — обязательная версия
-    - payload.nodes / payload.edges — новое состояние графа
-    - payload.is_published — опциональное состояние публикации для v0.2
+    Обновление доски временно отключено.
     """
-    # v01_to_v02_migration: keep the same API path and let the shared schema switch decide whether this field matters.
-    result = service.update_graph(
-        version=payload.version,
-        nodes=payload.nodes,
-        edges=payload.edges,
-        is_published=payload.is_published,
+    print(f"[graph_api] PUT /graph/board rejected for version={payload.version!r}")
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Board updates are temporarily disabled.",
     )
-    return BasicResponseDTO(**result)
 
 
 # --------- Ноды --------- #
 
 @app.get("/graph/nodes", response_model=List[NodeDTO])
 def get_nodes(
-    version: Optional[int] = Query(None),
+    version: Optional[str] = Query(None),
     id: Optional[str] = Query(None),
     ids: Optional[List[str]] = Query(None),
     name: Optional[str] = Query(None),
@@ -77,20 +77,26 @@ def get_nodes(
     - name: фильтр по имени
     - hasPicture: true/false – наличие/отсутствие картинки
     """
-    return service.get_nodes(
-        version=version,
-        node_id=id,
-        ids=ids,
-        name=name,
-        has_picture=hasPicture,
-    )
+    try:
+        return service.get_nodes(
+            version=version,
+            node_id=id,
+            ids=ids,
+            name=name,
+            has_picture=hasPicture,
+        )
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 # --------- Рёбра --------- #
 
 @app.get("/graph/edges", response_model=List[EdgeDTO])
 def get_edges(
-    version: Optional[int] = Query(None),
+    version: Optional[str] = Query(None),
     id: Optional[str] = Query(None),
     ids: Optional[List[str]] = Query(None),
     nodeId: Optional[str] = Query(None, alias="nodeId"),
@@ -106,14 +112,20 @@ def get_edges(
     - from: фильтр по node1
     - to: фильтр по node2
     """
-    return service.get_edges(
-        version=version,
-        edge_id=id,
-        ids=ids,
-        node_id=nodeId,
-        from_id=from_,
-        to_id=to,
-    )
+    try:
+        return service.get_edges(
+            version=version,
+            edge_id=id,
+            ids=ids,
+            node_id=nodeId,
+            from_id=from_,
+            to_id=to,
+        )
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 # --------- Версии доски --------- #
@@ -129,9 +141,15 @@ def get_versions():
 @app.get("/graph/active_version", response_model=ActiveVersionDTO)
 def get_active_version():
     """
-    Номер текущей актуальной версии доски.
+    Номер текущей доски с максимальным b_id.
     """
-    return ActiveVersionDTO(version=service.get_active_version())
+    try:
+        return ActiveVersionDTO(version=service.get_active_version())
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 # --------- Создание / удаление версии --------- #
@@ -141,22 +159,30 @@ def create_version(payload: VersionDTO):
     """
     Создать пустую версию доски.
     """
-    # v01_to_v02_migration: VersionDTO now carries optional is_published for v0.2, but v0.1 stays compatible.
-    result = service.create_version(
-        version=payload.version,
-        name=payload.name,
-        description=payload.description,
-        is_published=payload.is_published,
-    )
-    return BasicResponseDTO(**result)
+    try:
+        result = service.create_version(
+            version=payload.version,
+            name=payload.name,
+            description=payload.description,
+            is_published=payload.is_published,
+        )
+        return BasicResponseDTO(**result)
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 @app.delete("/graph/versions", response_model=BasicResponseDTO)
 def delete_version(payload: ActiveVersionDTO):
     """
     Удалить версию доски.
     """
-    result = service.delete_version(payload.version)
-    return BasicResponseDTO(**result)
+    print(f"[graph_api] DELETE /graph/versions rejected for version={payload.version!r}")
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Board deletion is temporarily disabled.",
+    )
 
 # --------- Изменение текущей актуальной версии --------- #
 
@@ -165,6 +191,11 @@ def set_active_version(payload: ActiveVersionDTO):
     """
     ИЗМЕНЕНИЕ текущей актуальной версии доски.
     """
-    # Предполагаем, что SetActiveVersionRequestDTO содержит поле `version`
-    result = service.set_active_version(payload.version)
-    return BasicResponseDTO(**result)
+    print(
+        "[graph_api] POST /graph/active_version rejected "
+        f"for version={payload.version!r}"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Active board is derived automatically from the maximum b_id.",
+    )

@@ -12,7 +12,6 @@ from typeql_template_driver import (  # type: ignore[import]
     TypeQLTemplateDriver,
     TemplateDriverError,
     SpecificationError,
-    OperationError,
     TemplateFileError,
 )
 
@@ -425,15 +424,6 @@ class TypeDBClient:
                 f"Failed to build query for operation '{op_name}' with params {params}: {e}"
             ) from e
 
-    def _operation_requires_param(self, op_name: str, param_name: str) -> bool:
-        """Проверяет, требуется ли параметр конкретной версии шаблона."""
-        try:
-            return param_name in self.template_driver.required_params(op_name)
-        except OperationError as e:
-            raise TemplateProcessingError(
-                f"Failed to inspect parameters for operation '{op_name}': {e}"
-            ) from e
-
     def _typeql_bool(self, value: bool) -> str:
         """TypeQL ожидает булевы литералы в нижнем регистре."""
         return "true" if value else "false"
@@ -809,10 +799,8 @@ class TypeDBClient:
             "version": version,
             "name": name,
             "description": description,
+            "is_published": self._typeql_bool(is_published),
         }
-        # v01_to_v02_migration: v0.2 requires is_published, while v0.1 must keep working unchanged.
-        if self._operation_requires_param(op_name, "is_published"):
-            query_params["is_published"] = self._typeql_bool(is_published)
 
         query = self._build_query(op_name, **query_params)
         self._execute_write(op_name, query)
@@ -981,9 +969,7 @@ class TypeDBClient:
                     return False
             return bool(value)
 
-        # v01_to_v02_migration: v0.2 can update board publication metadata during a regular board save,
-        # while v0.1 must ignore the optional field and keep working unchanged.
-        if is_published is not None and self.template_driver.has_operation("board-version-update"):
+        if is_published is not None:
             current_is_published = normalize_optional_bool(db_graph.get("is_published"))
             if current_is_published != is_published:
                 enqueue_write(

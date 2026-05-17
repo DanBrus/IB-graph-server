@@ -1,5 +1,6 @@
 import json
 import os
+from decimal import Decimal
 from typing import Dict, Any, Optional
 
 
@@ -228,6 +229,8 @@ class TypeQLTemplateDriver:
                 escaped = escaped.replace("\"", "\\\"")
                 escaped = escaped.replace("\'", "\\\'")
                 merged_params[key] = escaped
+            elif isinstance(value, Decimal):
+                merged_params[key] = f"{format(value, 'f')}dec"
         try:
             # TypeQL template should use Python's str.format placeholders: {param_name}
             query = template.format(**merged_params)

@@ -37,7 +37,7 @@ match
   $inv isa investigation, has name "{investigation_name}";
   $inv-board isa inv-has-board(investigation: $inv, board: $board);
   $board-node-link isa board-has-node(board: $board, member-node: $node);
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
 select $board-node-link, $entity-link, $node;
 distinct;
 delete
@@ -58,7 +58,7 @@ end;
 
 match
   $inv isa investigation, has name "{investigation_name}";
-  $inv-entity isa inv-has-entity(investigation: $inv, entity: $entity);
+  $inv-entity isa inv-has-entity(investigation: $inv, can-entity: $entity);
   $merge isa entity-merged-to(source: $entity, target: $target);
 select $merge;
 distinct;
@@ -68,7 +68,7 @@ end;
 
 match
   $inv isa investigation, has name "{investigation_name}";
-  $inv-entity isa inv-has-entity(investigation: $inv, entity: $entity);
+  $inv-entity isa inv-has-entity(investigation: $inv, can-entity: $entity);
   $merge isa entity-merged-to(source: $source, target: $entity);
 select $merge;
 distinct;

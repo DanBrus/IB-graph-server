@@ -3,12 +3,16 @@ match
 fetch {{
   "canonical_entities": [
     match
-      inv-has-entity(investigation: $inv, entity: $entity);
+      inv-has-entity(investigation: $inv, can-entity: $entity);
     fetch {{
       "en_id": $entity.en_id,
       "name": $entity.name,
       "entity_type": $entity.entity_type,
-      "picture_path": $entity.picture_path
+      "picture_paths": [
+        match
+          $entity has picture_path $picture_path;
+        return {{ $picture_path }};
+      ]
     }};
   ]
 }};

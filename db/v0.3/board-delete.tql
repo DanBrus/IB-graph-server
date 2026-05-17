@@ -33,7 +33,7 @@ end;
 match
   $board isa board, has b_id {b_id};
   $board-node-link isa board-has-node(board: $board, member-node: $node);
-  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $entity-link isa entity-has-node(can-entity: $entity, node: $node);
 select $board-node-link, $entity-link, $node;
 distinct;
 delete

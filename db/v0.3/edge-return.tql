@@ -5,13 +5,15 @@ fetch {{
   "board_b_id": (
     match
       board-has-edge(board: $board, member-edge: $edge);
-    return first $board.b_id;
+      $board has b_id $board_b_id;
+    return first $board_b_id;
   ),
   "endpoint_1_n_id": $endpoint1.n_id,
   "endpoint_2_n_id": $endpoint2.n_id,
   "chunk_ids": [
     match
       edge-has-chunk(edge-owner: $edge, chunk: $chunk);
-    return {{ $chunk.c_id }};
+      $chunk has c_id $chunk_c_id;
+    return {{ $chunk_c_id }};
   ]
 }};

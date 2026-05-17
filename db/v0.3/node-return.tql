@@ -2,18 +2,19 @@ match
   $node isa node, has n_id {n_id};
 fetch {{
   "n_id": $node.n_id,
-  "description": $node.description,
   "pos_x": $node.pos_x,
   "pos_y": $node.pos_y,
   "board_b_id": (
     match
       board-has-node(board: $board, member-node: $node);
-    return first $board.b_id;
+      $board has b_id $board_b_id;
+    return first $board_b_id;
   ),
   "entity_en_id": (
     match
-      entity-has-node(entity: $entity, node: $node);
-    return first $entity.en_id;
+      entity-has-node(can-entity: $entity, node: $node);
+      $entity has en_id $entity_en_id;
+    return first $entity_en_id;
   ),
   "edge_ids": [
     match
@@ -22,13 +23,15 @@ fetch {{
       }} or {{
         $edge isa edge, links (endpoint-1: $other, endpoint-2: $node);
       }};
-    select $edge;
+      $edge has ed_id $edge_ed_id;
+    select $edge_ed_id;
     distinct;
-    return {{ $edge.ed_id }};
+    return {{ $edge_ed_id }};
   ],
   "chunk_ids": [
     match
       node-has-chunk(node-owner: $node, chunk: $chunk);
-    return {{ $chunk.c_id }};
+      $chunk has c_id $chunk_c_id;
+    return {{ $chunk_c_id }};
   ]
 }};
