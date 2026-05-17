@@ -1,0 +1,11 @@
+match
+  $node1 isa node, has n_id {endpoint_1_n_id};
+  $node2 isa node, has n_id {endpoint_2_n_id};
+  {{
+    $edge isa edge, links (endpoint-1: $node1, endpoint-2: $node2);
+  }} or {{
+    $edge isa edge, links (endpoint-1: $node2, endpoint-2: $node1);
+  }};
+fetch {{
+  "ed_id": $edge.ed_id
+}};

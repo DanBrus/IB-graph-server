@@ -1,0 +1,10 @@
+match
+  $edge isa edge, has ed_id {ed_id};
+insert
+  $chunk isa text-chunk,
+    has c_id {c_id},
+    has description "{description}",
+    has chunk_priority {chunk_priority},
+    has timecode "{timecode}";
+  edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+end;

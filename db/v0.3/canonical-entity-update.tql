@@ -1,0 +1,8 @@
+match
+  $entity isa canonical-entity, has en_id "{en_id}";
+update
+  $entity has en_id "{new_en_id}";
+  $entity has name "{new_name}";
+  $entity has entity_type "{new_entity_type}";
+  $entity has picture_path "{new_picture_path}";
+end;

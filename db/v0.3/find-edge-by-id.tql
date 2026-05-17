@@ -1,0 +1,5 @@
+match
+  $edge isa edge, has ed_id {ed_id};
+fetch {{
+  "ed_id": $edge.ed_id
+}};

@@ -1,0 +1,14 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+fetch {{
+  "canonical_entities": [
+    match
+      inv-has-entity(investigation: $inv, entity: $entity);
+    fetch {{
+      "en_id": $entity.en_id,
+      "name": $entity.name,
+      "entity_type": $entity.entity_type,
+      "picture_path": $entity.picture_path
+    }};
+  ]
+}};

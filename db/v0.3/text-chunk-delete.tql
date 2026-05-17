@@ -1,0 +1,15 @@
+match
+  $chunk isa text-chunk, has c_id {c_id};
+  $node-link isa node-has-chunk(node-owner: $node, chunk: $chunk);
+delete
+  $node-link;
+  $chunk;
+end;
+
+match
+  $chunk isa text-chunk, has c_id {c_id};
+  $edge-link isa edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+delete
+  $edge-link;
+  $chunk;
+end;

@@ -1,0 +1,7 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $board isa board, has b_id {b_id};
+  inv-has-board(investigation: $inv, board: $board);
+fetch {{
+  "b_id": $board.b_id
+}};

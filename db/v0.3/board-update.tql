@@ -1,0 +1,8 @@
+match
+  $board isa board, has b_id {b_id};
+update
+  $board has b_id {new_b_id};
+  $board has name "{new_name}";
+  $board has description "{new_description}";
+  $board has is_published {new_is_published};
+end;

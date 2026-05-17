@@ -1,0 +1,14 @@
+match
+  $board isa board, has b_id {b_id};
+fetch {{
+  "edges": [
+    match
+      $edge isa edge, links (endpoint-1: $endpoint1, endpoint-2: $endpoint2);
+      board-has-edge(board: $board, member-edge: $edge);
+    fetch {{
+      "ed_id": $edge.ed_id,
+      "endpoint_1_n_id": $endpoint1.n_id,
+      "endpoint_2_n_id": $endpoint2.n_id
+    }};
+  ]
+}};

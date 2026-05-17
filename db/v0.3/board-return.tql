@@ -1,0 +1,18 @@
+match
+  $board isa board, has b_id {b_id};
+fetch {{
+  "b_id": $board.b_id,
+  "name": $board.name,
+  "description": $board.description,
+  "is_published": $board.is_published,
+  "node_ids": [
+    match
+      board-has-node(board: $board, member-node: $node);
+    return {{ $node.n_id }};
+  ],
+  "edge_ids": [
+    match
+      board-has-edge(board: $board, member-edge: $edge);
+    return {{ $edge.ed_id }};
+  ]
+}};

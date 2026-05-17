@@ -1,0 +1,12 @@
+match
+  $board isa board, has b_id {b_id};
+  $node1 isa node, has n_id {endpoint_1_n_id};
+  $node2 isa node, has n_id {endpoint_2_n_id};
+  board-has-node(board: $board, member-node: $node1);
+  board-has-node(board: $board, member-node: $node2);
+insert
+  $edge isa edge,
+    has ed_id {ed_id},
+    links (endpoint-1: $node1, endpoint-2: $node2);
+  board-has-edge(board: $board, member-edge: $edge);
+end;

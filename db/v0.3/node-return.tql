@@ -1,0 +1,34 @@
+match
+  $node isa node, has n_id {n_id};
+fetch {{
+  "n_id": $node.n_id,
+  "description": $node.description,
+  "pos_x": $node.pos_x,
+  "pos_y": $node.pos_y,
+  "board_b_id": (
+    match
+      board-has-node(board: $board, member-node: $node);
+    return first $board.b_id;
+  ),
+  "entity_en_id": (
+    match
+      entity-has-node(entity: $entity, node: $node);
+    return first $entity.en_id;
+  ),
+  "edge_ids": [
+    match
+      {{
+        $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
+      }} or {{
+        $edge isa edge, links (endpoint-1: $other, endpoint-2: $node);
+      }};
+    select $edge;
+    distinct;
+    return {{ $edge.ed_id }};
+  ],
+  "chunk_ids": [
+    match
+      node-has-chunk(node-owner: $node, chunk: $chunk);
+    return {{ $chunk.c_id }};
+  ]
+}};

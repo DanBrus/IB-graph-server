@@ -1,0 +1,5 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+update
+  $inv has name "{new_investigation_name}";
+end;

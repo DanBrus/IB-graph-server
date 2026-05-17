@@ -1,0 +1,28 @@
+match
+  $entity isa canonical-entity, has en_id "{en_id}";
+fetch {{
+  "en_id": $entity.en_id,
+  "name": $entity.name,
+  "entity_type": $entity.entity_type,
+  "picture_path": $entity.picture_path,
+  "investigation_name": (
+    match
+      inv-has-entity(investigation: $inv, entity: $entity);
+    return first $inv.name;
+  ),
+  "node_ids": [
+    match
+      entity-has-node(entity: $entity, node: $node);
+    return {{ $node.n_id }};
+  ],
+  "merged_to_en_ids": [
+    match
+      entity-merged-to(source: $entity, target: $target);
+    return {{ $target.en_id }};
+  ],
+  "merged_from_en_ids": [
+    match
+      entity-merged-to(source: $source, target: $entity);
+    return {{ $source.en_id }};
+  ]
+}};

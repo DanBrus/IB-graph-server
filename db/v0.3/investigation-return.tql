@@ -1,0 +1,15 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+fetch {{
+  "investigation_name": $inv.name,
+  "board_ids": [
+    match
+      inv-has-board(investigation: $inv, board: $board);
+    return {{ $board.b_id }};
+  ],
+  "canonical_entity_ids": [
+    match
+      inv-has-entity(investigation: $inv, entity: $entity);
+    return {{ $entity.en_id }};
+  ]
+}};

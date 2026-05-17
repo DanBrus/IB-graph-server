@@ -1,0 +1,5 @@
+match
+  $node isa node, has n_id {n_id};
+fetch {{
+  "n_id": $node.n_id
+}};

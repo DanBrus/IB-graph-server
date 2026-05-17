@@ -338,6 +338,54 @@ def test_get_operation_format_runtime_error_wrapped(tmp_path: Path) -> None:
 
     assert "Failed to format template" in str(excinfo.value)
 
+
+def test_project_v03_templates_load_and_format() -> None:
+    db_root = Path(__file__).resolve().parents[2] / "db"
+    driver = TypeQLTemplateDriver(db_root=str(db_root), version="v0.3")
+
+    assert driver.has_operation("find-node-by-edge-and-known-node")
+    assert driver.has_operation("board-create")
+    assert driver.has_operation("investigation-delete")
+    assert driver.has_operation("return-all-text-chunks-in-edge")
+
+    board_create = driver.get_operation(
+        "board-create",
+        investigation_name='Case "A"',
+        b_id=10.5,
+        name='Board "Main"',
+        description="Primary\\board",
+        is_published="true",
+    )
+    assert '\\"' in board_create
+    assert "\\\\" in board_create
+    assert "inv-has-board" in board_create
+
+    find_other_node = driver.get_operation(
+        "find-node-by-edge-and-known-node",
+        ed_id=7,
+        known_node_id=2,
+    )
+    assert "} or {" in find_other_node
+    assert '"n_id": $result.n_id' in find_other_node
+
+    investigation_delete = driver.get_operation(
+        "investigation-delete",
+        investigation_name="demo",
+    )
+    assert investigation_delete.count("end;") == 9
+    assert "distinct;" in investigation_delete
+
+    board_return = driver.get_operation("board-return", b_id=1.0)
+    assert "fetch {" in board_return
+    assert '"node_ids": [' in board_return
+    assert '"edge_ids": [' in board_return
+
+    return_chunks = driver.get_operation(
+        "return-all-text-chunks-in-edge",
+        ed_id=4,
+    )
+    assert '"text_chunks": [' in return_chunks
+
 def main() -> int:
     """Запустить все тесты в этом файле как самостоятельный скрипт."""
     import pytest

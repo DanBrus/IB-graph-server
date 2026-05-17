@@ -1,0 +1,5 @@
+match
+  $chunk isa text-chunk, has c_id {c_id};
+fetch {{
+  "c_id": $chunk.c_id
+}};

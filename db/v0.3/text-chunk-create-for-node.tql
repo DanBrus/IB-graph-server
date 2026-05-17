@@ -1,0 +1,10 @@
+match
+  $node isa node, has n_id {n_id};
+insert
+  $chunk isa text-chunk,
+    has c_id {c_id},
+    has description "{description}",
+    has chunk_priority {chunk_priority},
+    has timecode "{timecode}";
+  node-has-chunk(node-owner: $node, chunk: $chunk);
+end;

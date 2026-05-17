@@ -1,0 +1,13 @@
+match
+  $board isa board, has b_id {b_id};
+  $entity isa canonical-entity, has en_id "{en_id}";
+  inv-has-board(investigation: $inv, board: $board);
+  inv-has-entity(investigation: $inv, entity: $entity);
+insert
+  $node isa node,
+    has n_id {n_id},
+    has pos_x {pos_x},
+    has pos_y {pos_y};
+  board-has-node(board: $board, member-node: $node);
+  entity-has-node(entity: $entity, node: $node);
+end;

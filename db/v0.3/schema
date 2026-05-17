@@ -3,7 +3,7 @@ define
 attribute name,
  value string;
 attribute b_id,
- value string;
+ value double;
 attribute description,
  value string;
 attribute is_published,
@@ -21,6 +21,8 @@ attribute pos_x,
 attribute pos_y,
  value double;
 attribute ed_id,
+ value integer;
+attribute c_id,
  value integer;
 attribute timecode,
  value string;
@@ -90,6 +92,7 @@ relation board-has-edge,
   relates member-edge @card(1..1);
 
 entity text-chunk,
+  owns c_id @key,
   owns description @card(1..1),
   owns chunk_priority @card(1..1),
   owns timecode @card(1..1),

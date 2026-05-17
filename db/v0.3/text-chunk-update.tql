@@ -1,0 +1,8 @@
+match
+  $chunk isa text-chunk, has c_id {c_id};
+update
+  $chunk has c_id {new_c_id};
+  $chunk has description "{new_description}";
+  $chunk has chunk_priority {new_chunk_priority};
+  $chunk has timecode "{new_timecode}";
+end;

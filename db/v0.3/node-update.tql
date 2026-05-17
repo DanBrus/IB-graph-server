@@ -1,0 +1,8 @@
+match
+  $node isa node, has n_id {n_id};
+update
+  $node has n_id {new_n_id};
+  $node has pos_x {new_pos_x};
+  $node has pos_y {new_pos_y};
+  $node has description "{new_description}";
+end;

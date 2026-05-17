@@ -1,0 +1,13 @@
+match
+  $edge isa edge, has ed_id {ed_id};
+  $endpoint1 isa node, has n_id {new_endpoint_1_n_id};
+  $endpoint2 isa node, has n_id {new_endpoint_2_n_id};
+  $board isa board;
+  board-has-edge(board: $board, member-edge: $edge);
+  board-has-node(board: $board, member-node: $endpoint1);
+  board-has-node(board: $board, member-node: $endpoint2);
+update
+  $edge has ed_id {new_ed_id};
+  $edge links (endpoint-1: $endpoint1);
+  $edge links (endpoint-2: $endpoint2);
+end;

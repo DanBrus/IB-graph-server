@@ -1,0 +1,93 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-board isa inv-has-board(investigation: $inv, board: $board);
+  $board-edge-link isa board-has-edge(board: $board, member-edge: $edge);
+  $edge-link isa edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+select $edge-link, $chunk;
+distinct;
+delete
+  $edge-link;
+  $chunk;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-board isa inv-has-board(investigation: $inv, board: $board);
+  $board-edge-link isa board-has-edge(board: $board, member-edge: $edge);
+select $board-edge-link, $edge;
+distinct;
+delete
+  $board-edge-link;
+  $edge;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-board isa inv-has-board(investigation: $inv, board: $board);
+  $board-node-link isa board-has-node(board: $board, member-node: $node);
+  $node-link isa node-has-chunk(node-owner: $node, chunk: $chunk);
+select $node-link, $chunk;
+distinct;
+delete
+  $node-link;
+  $chunk;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-board isa inv-has-board(investigation: $inv, board: $board);
+  $board-node-link isa board-has-node(board: $board, member-node: $node);
+  $entity-link isa entity-has-node(entity: $entity, node: $node);
+select $board-node-link, $entity-link, $node;
+distinct;
+delete
+  $board-node-link;
+  $entity-link;
+  $node;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-board isa inv-has-board(investigation: $inv, board: $board);
+select $inv-board, $board;
+distinct;
+delete
+  $inv-board;
+  $board;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-entity isa inv-has-entity(investigation: $inv, entity: $entity);
+  $merge isa entity-merged-to(source: $entity, target: $target);
+select $merge;
+distinct;
+delete
+  $merge;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-entity isa inv-has-entity(investigation: $inv, entity: $entity);
+  $merge isa entity-merged-to(source: $source, target: $entity);
+select $merge;
+distinct;
+delete
+  $merge;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+  $inv-entity isa inv-has-entity(investigation: $inv, entity: $entity);
+select $inv-entity, $entity;
+distinct;
+delete
+  $inv-entity;
+  $entity;
+end;
+
+match
+  $inv isa investigation, has name "{investigation_name}";
+delete
+  $inv;
+end;

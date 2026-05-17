@@ -1,0 +1,6 @@
+match
+  $source isa canonical-entity, has en_id "{source_en_id}";
+  $merge isa entity-merged-to(source: $source, target: $target);
+delete
+  $merge;
+end;

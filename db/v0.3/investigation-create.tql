@@ -1,0 +1,4 @@
+insert
+  $inv isa investigation,
+    has name "{investigation_name}";
+end;

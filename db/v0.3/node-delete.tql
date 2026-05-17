@@ -1,0 +1,49 @@
+match
+  $node isa node, has n_id {n_id};
+  {{
+    $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
+  }} or {{
+    $edge isa edge, links (endpoint-1: $other, endpoint-2: $node);
+  }};
+  $edge-link isa edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+select $edge-link, $chunk;
+distinct;
+delete
+  $edge-link;
+  $chunk;
+end;
+
+match
+  $node isa node, has n_id {n_id};
+  {{
+    $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
+  }} or {{
+    $edge isa edge, links (endpoint-1: $other, endpoint-2: $node);
+  }};
+  $board-edge-link isa board-has-edge(board: $board, member-edge: $edge);
+select $board-edge-link, $edge;
+distinct;
+delete
+  $board-edge-link;
+  $edge;
+end;
+
+match
+  $node isa node, has n_id {n_id};
+  $node-link isa node-has-chunk(node-owner: $node, chunk: $chunk);
+select $node-link, $chunk;
+distinct;
+delete
+  $node-link;
+  $chunk;
+end;
+
+match
+  $node isa node, has n_id {n_id};
+  $entity-link isa entity-has-node(entity: $entity, node: $node);
+  $board-link isa board-has-node(board: $board, member-node: $node);
+delete
+  $entity-link;
+  $board-link;
+  $node;
+end;

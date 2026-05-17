@@ -1,0 +1,10 @@
+match
+  $inv isa investigation, has name "{investigation_name}";
+insert
+  $board isa board,
+    has b_id {b_id},
+    has name "{name}",
+    has description "{description}",
+    has is_published {is_published};
+  inv-has-board(investigation: $inv, board: $board);
+end;

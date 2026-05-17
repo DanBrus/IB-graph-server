@@ -1,0 +1,51 @@
+match
+  $board isa board, has b_id {b_id};
+  $board-edge-link isa board-has-edge(board: $board, member-edge: $edge);
+  $edge-link isa edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+select $edge-link, $chunk;
+distinct;
+delete
+  $edge-link;
+  $chunk;
+end;
+
+match
+  $board isa board, has b_id {b_id};
+  $board-edge-link isa board-has-edge(board: $board, member-edge: $edge);
+select $board-edge-link, $edge;
+distinct;
+delete
+  $board-edge-link;
+  $edge;
+end;
+
+match
+  $board isa board, has b_id {b_id};
+  $board-node-link isa board-has-node(board: $board, member-node: $node);
+  $node-link isa node-has-chunk(node-owner: $node, chunk: $chunk);
+select $node-link, $chunk;
+distinct;
+delete
+  $node-link;
+  $chunk;
+end;
+
+match
+  $board isa board, has b_id {b_id};
+  $board-node-link isa board-has-node(board: $board, member-node: $node);
+  $entity-link isa entity-has-node(entity: $entity, node: $node);
+select $board-node-link, $entity-link, $node;
+distinct;
+delete
+  $board-node-link;
+  $entity-link;
+  $node;
+end;
+
+match
+  $board isa board, has b_id {b_id};
+  $inv-link isa inv-has-board(investigation: $inv, board: $board);
+delete
+  $inv-link;
+  $board;
+end;

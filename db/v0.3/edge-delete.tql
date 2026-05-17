@@ -1,0 +1,17 @@
+match
+  $edge isa edge, has ed_id {ed_id};
+  $edge-link isa edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+select $edge-link, $chunk;
+distinct;
+delete
+  $edge-link;
+  $chunk;
+end;
+
+match
+  $edge isa edge, has ed_id {ed_id};
+  $board-link isa board-has-edge(board: $board, member-edge: $edge);
+delete
+  $board-link;
+  $edge;
+end;

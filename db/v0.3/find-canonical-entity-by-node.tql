@@ -1,0 +1,7 @@
+match
+  $node isa node, has n_id {n_id};
+  $entity isa canonical-entity;
+  entity-has-node(entity: $entity, node: $node);
+fetch {{
+  "en_id": $entity.en_id
+}};

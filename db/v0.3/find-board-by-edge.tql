@@ -1,0 +1,7 @@
+match
+  $edge isa edge, has ed_id {ed_id};
+  $board isa board;
+  board-has-edge(board: $board, member-edge: $edge);
+fetch {{
+  "b_id": $board.b_id
+}};

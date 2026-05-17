@@ -1,0 +1,266 @@
+[
+  {
+    "operation": "find-investigation-by-name",
+    "file": "find-investigation-by-name.tql",
+    "params": ["investigation_name"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-board-by-investigation-and-id",
+    "file": "find-board-by-investigation-and-id.tql",
+    "params": ["investigation_name", "b_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-board-by-node",
+    "file": "find-board-by-node.tql",
+    "params": ["n_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-board-by-edge",
+    "file": "find-board-by-edge.tql",
+    "params": ["ed_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-canonical-entity-by-investigation-and-name",
+    "file": "find-canonical-entity-by-investigation-and-name.tql",
+    "params": ["investigation_name", "name"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-canonical-entity-by-node",
+    "file": "find-canonical-entity-by-node.tql",
+    "params": ["n_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-node-by-id",
+    "file": "find-node-by-id.tql",
+    "params": ["n_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-node-by-edge-and-known-node",
+    "file": "find-node-by-edge-and-known-node.tql",
+    "params": ["ed_id", "known_node_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-edge-by-id",
+    "file": "find-edge-by-id.tql",
+    "params": ["ed_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-edge-by-nodes",
+    "file": "find-edge-by-nodes.tql",
+    "params": ["endpoint_1_n_id", "endpoint_2_n_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "find-text-chunk-by-id",
+    "file": "find-text-chunk-by-id.tql",
+    "params": ["c_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "investigation-create",
+    "file": "investigation-create.tql",
+    "params": ["investigation_name"],
+    "output": null
+  },
+  {
+    "operation": "board-create",
+    "file": "board-create.tql",
+    "params": ["investigation_name", "b_id", "name", "description", "is_published"],
+    "output": null
+  },
+  {
+    "operation": "canonical-entity-create",
+    "file": "canonical-entity-create.tql",
+    "params": ["investigation_name", "en_id", "name"],
+    "output": null
+  },
+  {
+    "operation": "node-create",
+    "file": "node-create.tql",
+    "params": ["b_id", "en_id", "n_id", "pos_x", "pos_y"],
+    "output": null
+  },
+  {
+    "operation": "edge-create",
+    "file": "edge-create.tql",
+    "params": ["b_id", "endpoint_1_n_id", "endpoint_2_n_id", "ed_id"],
+    "output": null
+  },
+  {
+    "operation": "text-chunk-create-for-node",
+    "file": "text-chunk-create-for-node.tql",
+    "params": ["n_id", "c_id", "description", "chunk_priority", "timecode"],
+    "output": null
+  },
+  {
+    "operation": "text-chunk-create-for-edge",
+    "file": "text-chunk-create-for-edge.tql",
+    "params": ["ed_id", "c_id", "description", "chunk_priority", "timecode"],
+    "output": null
+  },
+  {
+    "operation": "entity-merged-to-create",
+    "file": "entity-merged-to-create.tql",
+    "params": ["source_en_id", "target_en_id"],
+    "output": null
+  },
+  {
+    "operation": "investigation-update-name",
+    "file": "investigation-update-name.tql",
+    "params": ["investigation_name", "new_investigation_name"],
+    "output": null
+  },
+  {
+    "operation": "board-update",
+    "file": "board-update.tql",
+    "params": ["b_id", "new_b_id", "new_name", "new_description", "new_is_published"],
+    "output": null
+  },
+  {
+    "operation": "canonical-entity-update",
+    "file": "canonical-entity-update.tql",
+    "params": ["en_id", "new_en_id", "new_name", "new_entity_type", "new_picture_path"],
+    "output": null
+  },
+  {
+    "operation": "node-update",
+    "file": "node-update.tql",
+    "params": ["n_id", "new_n_id", "new_pos_x", "new_pos_y", "new_description"],
+    "output": null
+  },
+  {
+    "operation": "edge-update",
+    "file": "edge-update.tql",
+    "params": ["ed_id", "new_ed_id", "new_endpoint_1_n_id", "new_endpoint_2_n_id"],
+    "output": null
+  },
+  {
+    "operation": "text-chunk-update",
+    "file": "text-chunk-update.tql",
+    "params": ["c_id", "new_c_id", "new_description", "new_chunk_priority", "new_timecode"],
+    "output": null
+  },
+  {
+    "operation": "investigation-delete",
+    "file": "investigation-delete.tql",
+    "params": ["investigation_name"],
+    "output": null
+  },
+  {
+    "operation": "board-delete",
+    "file": "board-delete.tql",
+    "params": ["b_id"],
+    "output": null
+  },
+  {
+    "operation": "canonical-entity-delete",
+    "file": "canonical-entity-delete.tql",
+    "params": ["en_id"],
+    "output": null
+  },
+  {
+    "operation": "node-delete",
+    "file": "node-delete.tql",
+    "params": ["n_id"],
+    "output": null
+  },
+  {
+    "operation": "edge-delete",
+    "file": "edge-delete.tql",
+    "params": ["ed_id"],
+    "output": null
+  },
+  {
+    "operation": "text-chunk-delete",
+    "file": "text-chunk-delete.tql",
+    "params": ["c_id"],
+    "output": null
+  },
+  {
+    "operation": "entity-merged-to-delete-by-source",
+    "file": "entity-merged-to-delete-by-source.tql",
+    "params": ["source_en_id"],
+    "output": null
+  },
+  {
+    "operation": "investigation-return",
+    "file": "investigation-return.tql",
+    "params": ["investigation_name"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "board-return",
+    "file": "board-return.tql",
+    "params": ["b_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "canonical-entity-return",
+    "file": "canonical-entity-return.tql",
+    "params": ["en_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "node-return",
+    "file": "node-return.tql",
+    "params": ["n_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "edge-return",
+    "file": "edge-return.tql",
+    "params": ["ed_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "text-chunk-return",
+    "file": "text-chunk-return.tql",
+    "params": ["c_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-boards-in-investigation",
+    "file": "return-all-boards-in-investigation.tql",
+    "params": ["investigation_name"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-canonical-entities-in-investigation",
+    "file": "return-all-canonical-entities-in-investigation.tql",
+    "params": ["investigation_name"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-nodes-in-board",
+    "file": "return-all-nodes-in-board.tql",
+    "params": ["b_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-edges-in-board",
+    "file": "return-all-edges-in-board.tql",
+    "params": ["b_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-text-chunks-in-node",
+    "file": "return-all-text-chunks-in-node.tql",
+    "params": ["n_id"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-text-chunks-in-edge",
+    "file": "return-all-text-chunks-in-edge.tql",
+    "params": ["ed_id"],
+    "output": {"type": "json"}
+  }
+]

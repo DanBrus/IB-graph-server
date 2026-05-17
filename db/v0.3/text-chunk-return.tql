@@ -1,0 +1,18 @@
+match
+  $chunk isa text-chunk, has c_id {c_id};
+fetch {{
+  "c_id": $chunk.c_id,
+  "description": $chunk.description,
+  "chunk_priority": $chunk.chunk_priority,
+  "timecode": $chunk.timecode,
+  "node_n_id": (
+    match
+      node-has-chunk(node-owner: $node, chunk: $chunk);
+    return first $node.n_id;
+  ),
+  "edge_ed_id": (
+    match
+      edge-has-chunk(edge-owner: $edge, chunk: $chunk);
+    return first $edge.ed_id;
+  )
+}};
