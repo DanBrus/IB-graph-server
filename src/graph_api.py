@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from graph_models import (
     BasicResponseDTO,
     BoardDTO,
+    CanonicalEntityDTO,
     NodeDTO,
     EdgeDTO,
     VersionDTO,
-    ActiveVersionDTO,
 )
 from graph_service import BoardVersionResolutionError, GraphService
 
@@ -71,7 +71,7 @@ def get_nodes(
 ):
     """
     Все ноды доски (или по фильтру):
-    - version: номер версии (по умолчанию актуальная)
+    - version: b_id доски (по умолчанию максимальный)
     - id: одна нода по id
     - ids: несколько id (?ids=n1&ids=n2)
     - name: фильтр по имени
@@ -105,7 +105,7 @@ def get_edges(
 ):
     """
     Все edge (или по фильтру):
-    - version: номер версии (по умолчанию актуальная)
+    - version: b_id доски (по умолчанию максимальный)
     - id: одно ребро по id
     - ids: несколько id (?ids=e1&ids=e2)
     - nodeId: все рёбра, где участвует указанная нода
@@ -128,28 +128,24 @@ def get_edges(
         ) from exc
 
 
+# --------- Canonical Entities --------- #
+
+@app.get("/graph/canonical-entities", response_model=List[CanonicalEntityDTO])
+def get_canonical_entities():
+    """
+    Все canonical-entity текущего investigation.
+    """
+    return service.get_canonical_entities()
+
+
 # --------- Версии доски --------- #
 
 @app.get("/graph/versions", response_model=List[VersionDTO])
 def get_versions():
     """
-    Список имеющихся версий доски.
+    Список имеющихся b_id досок.
     """
     return service.get_versions()
-
-
-@app.get("/graph/active_version", response_model=ActiveVersionDTO)
-def get_active_version():
-    """
-    Номер текущей доски с максимальным b_id.
-    """
-    try:
-        return ActiveVersionDTO(version=service.get_active_version())
-    except BoardVersionResolutionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
 
 
 # --------- Создание / удаление версии --------- #
@@ -174,28 +170,12 @@ def create_version(payload: VersionDTO):
         ) from exc
 
 @app.delete("/graph/versions", response_model=BasicResponseDTO)
-def delete_version(payload: ActiveVersionDTO):
+def delete_version(version: Optional[float] = Query(None)):
     """
     Удалить версию доски.
     """
-    print(f"[graph_api] DELETE /graph/versions rejected for version={payload.version!r}")
+    print(f"[graph_api] DELETE /graph/versions rejected for version={version!r}")
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Board deletion is temporarily disabled.",
-    )
-
-# --------- Изменение текущей актуальной версии --------- #
-
-@app.post("/graph/active_version", response_model=BasicResponseDTO)
-def set_active_version(payload: ActiveVersionDTO):
-    """
-    ИЗМЕНЕНИЕ текущей актуальной версии доски.
-    """
-    print(
-        "[graph_api] POST /graph/active_version rejected "
-        f"for version={payload.version!r}"
-    )
-    raise HTTPException(
-        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-        detail="Active board is derived automatically from the maximum b_id.",
     )
