@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 
 from typedb_client import TypeDBClient
 
-from graph_models import BoardDTO, EdgeDTO, NodeDTO, VersionDTO
+from graph_models import BoardDTO, CanonicalEntityDTO, EdgeDTO, NodeDTO, VersionDTO
 
 LOG_API_METHOD_EXECUTION = True
 
@@ -33,7 +33,7 @@ class BoardVersionResolutionError(ValueError):
 
 class GraphService:
     """
-    Сервис совместимости старого API поверх схемы TypeDB v0.3.
+    Сервис graph API поверх схемы TypeDB v0.3.
     """
 
     def __init__(self):
@@ -133,7 +133,10 @@ class GraphService:
     def _stringify_board_id(self, board_id: Any) -> str:
         return format(self._as_decimal(board_id), "f")
 
-    def _parse_requested_board_id(self, version: str) -> Decimal:
+    def _serialize_board_id(self, board_id: Any) -> float:
+        return float(self._as_decimal(board_id))
+
+    def _parse_requested_board_id(self, version: Any) -> Decimal:
         raw_version = self._as_text(version).strip()
         if not raw_version:
             raise BoardVersionResolutionError("version must not be empty.")
@@ -173,6 +176,46 @@ class GraphService:
         boards.sort(key=lambda item: item["b_id"])
         return boards
 
+    def _normalize_canonical_entities_payload(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        entities: list[dict[str, Any]] = []
+
+        for raw_entity in payload.get("canonical_entities", []):
+            if not isinstance(raw_entity, dict):
+                continue
+
+            entity_id = self._as_text(raw_entity.get("en_id"))
+            if not entity_id:
+                continue
+
+            picture_paths = [
+                self._as_text(value)
+                for value in self._extract_scalar_list(raw_entity.get("picture_paths"))
+                if self._as_text(value)
+            ]
+            entities.append(
+                {
+                    "en_id": entity_id,
+                    "name": self._as_text(raw_entity.get("name")),
+                    "entity_type": self._as_text(raw_entity.get("entity_type")),
+                    "picture_paths": picture_paths,
+                }
+            )
+
+        entities.sort(key=lambda item: (item["name"], item["en_id"]))
+        return entities
+
+    def _load_canonical_entities(self) -> list[dict[str, Any]]:
+        docs = self._read_docs(
+            "return-all-canonical-entities-in-investigation",
+            investigation_name=self.client.investigation_name,
+        )
+        payload = self._first_doc(
+            docs,
+            label="return-all-canonical-entities-in-investigation",
+            allow_empty=True,
+        )
+        return self._normalize_canonical_entities_payload(payload)
+
     def _select_board(
         self,
         boards: list[dict[str, Any]],
@@ -206,6 +249,7 @@ class GraphService:
                     "c_id": self._as_int(raw_chunk.get("c_id")),
                     "chunk_priority": self._as_int(raw_chunk.get("chunk_priority")),
                     "description": description,
+                    "timecode": self._as_text(raw_chunk.get("timecode")),
                 }
             )
 
@@ -218,12 +262,16 @@ class GraphService:
         )
         return chunks
 
-    def _compose_description(self, chunks: list[dict[str, Any]]) -> str | None:
-        parts = [self._as_text(chunk.get("description")).strip() for chunk in chunks]
-        filtered = [part for part in parts if part]
-        if not filtered:
-            return None
-        return "\n\n".join(filtered)
+    def _serialize_chunks(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "c_id": self._as_int(chunk.get("c_id")),
+                "description": self._as_text(chunk.get("description")),
+                "chunk_priority": self._as_int(chunk.get("chunk_priority")),
+                "timecode": self._as_text(chunk.get("timecode")),
+            }
+            for chunk in chunks
+        ]
 
     def _load_board_snapshot(self, version: Optional[str]) -> dict[str, Any]:
         started_at = time.perf_counter()
@@ -296,28 +344,12 @@ class GraphService:
 
         chunk_docs = self.client._execute_read_queries(chunk_queries) if chunk_queries else {}
 
-        entities_by_id: dict[str, dict[str, Any]] = {}
-        for raw_entity in entities_payload.get("canonical_entities", []):
-            if not isinstance(raw_entity, dict):
-                continue
+        entities = self._normalize_canonical_entities_payload(entities_payload)
+        entities_by_id = {
+            entity["en_id"]: entity
+            for entity in entities
+        }
 
-            entity_id = self._as_text(raw_entity.get("en_id"))
-            if not entity_id:
-                continue
-
-            picture_paths = [
-                self._as_text(value)
-                for value in self._extract_scalar_list(raw_entity.get("picture_paths"))
-                if self._as_text(value)
-            ]
-            entities_by_id[entity_id] = {
-                "name": self._as_text(raw_entity.get("name")),
-                "entity_type": self._as_optional_text(raw_entity.get("entity_type")),
-                "picture_paths": picture_paths,
-            }
-
-        edge_chunks_by_id: dict[int, list[dict[str, Any]]] = {}
-        edge_ids_by_node: dict[int, set[int]] = {}
         edges: list[dict[str, Any]] = []
 
         for raw_edge in sorted(raw_edges, key=lambda item: self._as_int(item.get("ed_id"))):
@@ -331,17 +363,13 @@ class GraphService:
                 allow_empty=True,
             )
             edge_chunks = self._normalize_chunk_payload(edge_chunk_payload)
-            edge_chunks_by_id[edge_id] = edge_chunks
-
-            edge_ids_by_node.setdefault(node1, set()).add(edge_id)
-            edge_ids_by_node.setdefault(node2, set()).add(edge_id)
 
             edges.append(
                 {
                     "edge_id": edge_id,
                     "node1": node1,
                     "node2": node2,
-                    "description": self._compose_description(edge_chunks),
+                    "description": self._serialize_chunks(edge_chunks),
                 }
             )
 
@@ -362,17 +390,7 @@ class GraphService:
                 label=f"return-all-text-chunks-in-node:{node_id}",
                 allow_empty=True,
             )
-            description_chunks = list(self._normalize_chunk_payload(node_chunk_payload))
-            for edge_id in sorted(edge_ids_by_node.get(node_id, set())):
-                description_chunks.extend(edge_chunks_by_id.get(edge_id, []))
-
-            description_chunks.sort(
-                key=lambda item: (
-                    item["chunk_priority"],
-                    item["c_id"],
-                    item["description"],
-                )
-            )
+            node_chunks = self._normalize_chunk_payload(node_chunk_payload)
 
             picture_paths = entity["picture_paths"]
             nodes.append(
@@ -383,7 +401,7 @@ class GraphService:
                     "pos_y": self._as_float(raw_node.get("pos_y")),
                     "node_type": entity["entity_type"],
                     "picture_path": picture_paths[-1] if picture_paths else None,
-                    "description": self._compose_description(description_chunks),
+                    "description": self._serialize_chunks(node_chunks),
                 }
             )
 
@@ -397,7 +415,7 @@ class GraphService:
         return {
             "nodes": nodes,
             "edges": edges,
-            "version": self._stringify_board_id(board_id),
+            "version": self._serialize_board_id(board_id),
             "description": board["description"],
             "board_name": board["name"],
             "is_published": board["is_published"],
@@ -491,7 +509,7 @@ class GraphService:
         print("[GraphService] board versions requested")
         return [
             {
-                "version": self._stringify_board_id(board["b_id"]),
+                "version": self._serialize_board_id(board["b_id"]),
                 "name": board["name"],
                 "description": board["description"],
                 "is_published": board["is_published"],
@@ -500,19 +518,17 @@ class GraphService:
         ]
 
     @log_api_method_execution
-    def get_active_version(self) -> str:
-        boards = self._list_boards()
-        active_board = self._select_board(boards, version=None)
-        active_version = self._stringify_board_id(active_board["b_id"])
-        print(f"[GraphService] board active version requested: {active_version}")
-        return active_version
+    def get_canonical_entities(self) -> List[CanonicalEntityDTO]:
+        entities = self._load_canonical_entities()
+        print("[GraphService] canonical entities requested")
+        return entities
 
     # --------- ЗАПИСЬ --------- #
 
     @log_api_method_execution
     def create_version(
         self,
-        version: str,
+        version: Any,
         name: str,
         description: str,
         is_published: Optional[bool] = None,
@@ -535,27 +551,3 @@ class GraphService:
         self.client._execute_write("board-create", query)
         print(f"[GraphService] board created: {self._stringify_board_id(board_id)}")
         return {"status": "ok"}
-
-    @log_api_method_execution
-    def delete_version(self, version: str) -> dict:
-        raise NotImplementedError(
-            f"Deleting board {version!r} is disabled at API layer."
-        )
-
-    @log_api_method_execution
-    def set_active_version(self, version: str) -> dict:
-        raise NotImplementedError(
-            f"Setting active board {version!r} is disabled at API layer."
-        )
-
-    @log_api_method_execution
-    def update_graph(
-        self,
-        version: str,
-        nodes,
-        edges,
-        is_published: Optional[bool] = None,
-    ):
-        raise NotImplementedError(
-            f"Updating board {version!r} is disabled at API layer."
-        )
