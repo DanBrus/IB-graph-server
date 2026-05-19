@@ -428,15 +428,85 @@ class TypeDBClient:
         """TypeQL ожидает булевы литералы в нижнем регистре."""
         return "true" if value else "false"
 
+    def _split_write_query_script(self, query: str) -> list[str]:
+        """
+        Разбивает write-скрипт на отдельные TypeQL queries.
+
+        В v0.3 часть write-шаблонов хранит несколько независимых query в одном
+        `.tql`-файле, каждая из которых оканчивается `end;`. Драйвер TypeDB
+        принимает в `tx.query(...)` только одну query за вызов, поэтому здесь мы
+        аккуратно режем общий текст на подзапросы, игнорируя `end;` внутри
+        строковых литералов.
+        """
+        queries: list[str] = []
+        start = 0
+        in_string = False
+        escaped = False
+        index = 0
+
+        while index < len(query):
+            char = query[index]
+
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == "\"":
+                    in_string = False
+                index += 1
+                continue
+
+            if char == "\"":
+                in_string = True
+                index += 1
+                continue
+
+            if query.startswith("end;", index):
+                end_index = index + 4
+                chunk = query[start:end_index].strip()
+                if chunk:
+                    queries.append(chunk)
+                start = end_index
+                index = end_index
+                continue
+
+            index += 1
+
+        tail = query[start:].strip()
+        if tail:
+            queries.append(tail)
+
+        return queries
+
     def _execute_write(self, op_name: str, query: str) -> None:
         """Общий helper для write-запросов."""
         try:
             with self.transaction(TransactionType.WRITE) as tx:
-                tx.query(query).resolve()
+                for subquery in self._split_write_query_script(query):
+                    tx.query(subquery).resolve()
                 tx.commit()
         except Exception as e:
             raise QueryExecutionError(
                 f"Failed to execute write operation '{op_name}' "
+                f"on database '{self.db_name}': {e}"
+            ) from e
+
+    def _execute_write_queries(self, operations: list[tuple[str, str]]) -> None:
+        """Выполняет несколько write-запросов в одной транзакции."""
+        if not operations:
+            return
+
+        try:
+            with self.transaction(TransactionType.WRITE) as tx:
+                for op_name, query in operations:
+                    for subquery in self._split_write_query_script(query):
+                        tx.query(subquery).resolve()
+                tx.commit()
+        except Exception as e:
+            operation_names = ", ".join(op_name for op_name, _ in operations)
+            raise QueryExecutionError(
+                f"Failed to execute write operations ({operation_names}) "
                 f"on database '{self.db_name}': {e}"
             ) from e
 

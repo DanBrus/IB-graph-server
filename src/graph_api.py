@@ -7,11 +7,17 @@ from graph_models import (
     BasicResponseDTO,
     BoardDTO,
     CanonicalEntityDTO,
-    NodeDTO,
     EdgeDTO,
+    FreeIdsDTO,
+    NodeDTO,
     VersionDTO,
 )
-from graph_service import BoardVersionResolutionError, GraphService
+from graph_service import (
+    BoardSyncError,
+    BoardVersionResolutionError,
+    CanonicalEntitySyncError,
+    GraphService,
+)
 
 
 service = GraphService()
@@ -50,13 +56,21 @@ def get_board(version: Optional[str] = Query(None)):
 @app.put("/graph/board", response_model=BasicResponseDTO)
 def update_board(payload: BoardDTO):
     """
-    Обновление доски временно отключено.
+    Полная синхронизация доски по переданному payload.
     """
-    print(f"[graph_api] PUT /graph/board rejected for version={payload.version!r}")
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Board updates are temporarily disabled.",
-    )
+    try:
+        result = service.update_board(payload)
+        return BasicResponseDTO(**result)
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except BoardSyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_406_NOT_ACCEPTABLE,
+            detail=exc.detail,
+        ) from exc
 
 
 # --------- Ноды --------- #
@@ -138,7 +152,29 @@ def get_canonical_entities():
     return service.get_canonical_entities()
 
 
+@app.put("/graph/canonical-entities", response_model=BasicResponseDTO)
+def update_canonical_entities(payload: List[CanonicalEntityDTO]):
+    """
+    Полная синхронизация списка canonical-entity текущего investigation.
+    """
+    try:
+        result = service.update_canonical_entities(payload)
+        return BasicResponseDTO(**result)
+    except CanonicalEntitySyncError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_406_NOT_ACCEPTABLE,
+            detail=exc.detail,
+        ) from exc
+
+
 # --------- Версии доски --------- #
+
+@app.get("/graph/free-ids", response_model=FreeIdsDTO)
+def get_free_ids():
+    """
+    Минимальные свободные id для node / edge / chunk.
+    """
+    return service.get_free_ids()
 
 @app.get("/graph/versions", response_model=List[VersionDTO])
 def get_versions():
@@ -170,12 +206,15 @@ def create_version(payload: VersionDTO):
         ) from exc
 
 @app.delete("/graph/versions", response_model=BasicResponseDTO)
-def delete_version(version: Optional[float] = Query(None)):
+def delete_version(version: Optional[str] = Query(None)):
     """
     Удалить версию доски.
     """
-    print(f"[graph_api] DELETE /graph/versions rejected for version={version!r}")
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Board deletion is temporarily disabled.",
-    )
+    try:
+        result = service.delete_version(version=version)
+        return BasicResponseDTO(**result)
+    except BoardVersionResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc

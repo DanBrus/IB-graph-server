@@ -12,6 +12,7 @@ class ChunkDTO(BaseModel):
 
 class NodeDTO(BaseModel):
     node_id: int
+    ce_id: str
     name: str
     pos_x: float
     pos_y: float
@@ -30,6 +31,12 @@ class CanonicalEntityDTO(BaseModel):
     name: str
     entity_type: str
     picture_paths: List[str] = Field(default_factory=list)
+    merged_to: Optional[str] = None
+
+class FreeIdsDTO(BaseModel):
+    node_id: int
+    edge_id: int
+    chunk_id: int
 
 class BoardDTO(BaseModel):
     nodes: List[NodeDTO]

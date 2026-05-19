@@ -114,6 +114,12 @@
     "output": null
   },
   {
+    "operation": "entity-has-node-create",
+    "file": "entity-has-node-create.tql",
+    "params": ["en_id", "n_id"],
+    "output": null
+  },
+  {
     "operation": "investigation-update-name",
     "file": "investigation-update-name.tql",
     "params": ["investigation_name", "new_investigation_name"],
@@ -129,6 +135,24 @@
     "operation": "canonical-entity-update",
     "file": "canonical-entity-update.tql",
     "params": ["en_id", "new_en_id", "new_name", "new_entity_type", "new_picture_path"],
+    "output": null
+  },
+  {
+    "operation": "canonical-entity-update-core",
+    "file": "canonical-entity-update-core.tql",
+    "params": ["en_id", "new_name", "new_entity_type"],
+    "output": null
+  },
+  {
+    "operation": "canonical-entity-clear-picture-paths",
+    "file": "canonical-entity-clear-picture-paths.tql",
+    "params": ["en_id"],
+    "output": null
+  },
+  {
+    "operation": "canonical-entity-add-picture-path",
+    "file": "canonical-entity-add-picture-path.tql",
+    "params": ["en_id", "picture_path"],
     "output": null
   },
   {
@@ -192,6 +216,12 @@
     "output": null
   },
   {
+    "operation": "entity-has-node-delete-by-node",
+    "file": "entity-has-node-delete-by-node.tql",
+    "params": ["n_id"],
+    "output": null
+  },
+  {
     "operation": "investigation-return",
     "file": "investigation-return.tql",
     "params": ["investigation_name"],
@@ -237,6 +267,12 @@
     "operation": "return-all-canonical-entities-in-investigation",
     "file": "return-all-canonical-entities-in-investigation.tql",
     "params": ["investigation_name"],
+    "output": {"type": "json"}
+  },
+  {
+    "operation": "return-all-board-ids-containing-canonical-entity-nodes",
+    "file": "return-all-board-ids-containing-canonical-entity-nodes.tql",
+    "params": ["en_id"],
     "output": {"type": "json"}
   },
   {
