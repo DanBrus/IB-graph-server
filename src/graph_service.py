@@ -593,6 +593,35 @@ class GraphService:
         size = entity_sizes[entity_type]
         return math.hypot(size["width"] / 2.0, size["height"] / 2.0)
 
+    def _required_ring_center_radius(
+        self,
+        *,
+        inner_outer_radius: float,
+        card_radii: list[float],
+    ) -> float:
+        if not card_radii:
+            return inner_outer_radius
+
+        ring_max_radius = max(card_radii)
+        min_center_radius = inner_outer_radius + ring_max_radius
+        ring_count = len(card_radii)
+        if ring_count == 1:
+            return min_center_radius
+
+        sin_half_step = math.sin(math.pi / ring_count)
+        if sin_half_step <= 0:
+            return min_center_radius
+
+        required_by_neighbors = 0.0
+        for index, radius in enumerate(card_radii):
+            next_radius = card_radii[(index + 1) % ring_count]
+            required_by_neighbors = max(
+                required_by_neighbors,
+                (radius + next_radius) / (2 * sin_half_step),
+            )
+
+        return max(min_center_radius, required_by_neighbors)
+
     def _layout_analysis_cards(
         self,
         *,
@@ -616,8 +645,6 @@ class GraphService:
         if not ordered_linked_cards:
             return ordered_linked_cards
 
-        card_gap = 48.0
-        ring_gap = 96.0
         min_angular_step_deg = 5.0
         max_cards_per_ring = max(1, int(360 // min_angular_step_deg))
         previous_outer_radius = core_radius
@@ -625,58 +652,23 @@ class GraphService:
         ring_index = 0
 
         while cursor < len(ordered_linked_cards):
-            ring_count = 0
-            ring_max_radius = 0.0
-
-            while cursor + ring_count < len(ordered_linked_cards):
-                candidate_cards = ordered_linked_cards[cursor: cursor + ring_count + 1]
-                candidate_max_radius = max(
-                    self._card_radius_for_entity_type(
-                        self._as_text(card.get("node_type")),
-                        entity_sizes,
-                    )
-                    for card in candidate_cards
-                )
-                candidate_count = ring_count + 1
-                if candidate_count > max_cards_per_ring:
-                    break
-
-                min_center_radius = previous_outer_radius + candidate_max_radius + ring_gap
-                if candidate_count == 1:
-                    required_center_radius = min_center_radius
-                else:
-                    chord = 2 * candidate_max_radius + card_gap
-                    required_center_radius = max(
-                        min_center_radius,
-                        chord / (2 * math.sin(math.pi / candidate_count)),
-                    )
-
-                angular_step = 360.0 / candidate_count
-                if angular_step < min_angular_step_deg:
-                    break
-
-                ring_count = candidate_count
-                ring_max_radius = candidate_max_radius
-
-            if ring_count == 0:
-                ring_count = 1
-                ring_max_radius = self._card_radius_for_entity_type(
-                    self._as_text(ordered_linked_cards[cursor].get("node_type")),
+            planned_ring_capacity = 6 * (2 * ring_index + 1)
+            ring_capacity = min(planned_ring_capacity, max_cards_per_ring)
+            ring_cards = ordered_linked_cards[cursor: cursor + ring_capacity]
+            ring_count = len(ring_cards)
+            ring_radii = [
+                self._card_radius_for_entity_type(
+                    self._as_text(card.get("node_type")),
                     entity_sizes,
                 )
-
-            ring_cards = ordered_linked_cards[cursor: cursor + ring_count]
-            min_center_radius = previous_outer_radius + ring_max_radius + ring_gap
-            if ring_count == 1:
-                center_radius = min_center_radius
-                angular_step = 360.0
-            else:
-                chord = 2 * ring_max_radius + card_gap
-                center_radius = max(
-                    min_center_radius,
-                    chord / (2 * math.sin(math.pi / ring_count)),
-                )
-                angular_step = 360.0 / ring_count
+                for card in ring_cards
+            ]
+            ring_max_radius = max(ring_radii) if ring_radii else 0.0
+            center_radius = self._required_ring_center_radius(
+                inner_outer_radius=previous_outer_radius,
+                card_radii=ring_radii,
+            )
+            angular_step = 360.0 if ring_count <= 1 else 360.0 / ring_count
 
             angle_offset = -90.0
             if ring_count > 1 and ring_index % 2 == 1:
