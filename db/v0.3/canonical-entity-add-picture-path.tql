@@ -1,0 +1,5 @@
+match
+  $entity isa canonical-entity, has en_id "{en_id}";
+insert
+  $entity has picture_path "{picture_path}";
+end;

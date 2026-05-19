@@ -92,6 +92,47 @@ def _prompt_entity_type_choice(
         print("Selected number is out of range. Try again.")
 
 
+def _prompt_entity_name_match_choice(
+    *,
+    node_name: str,
+    candidate_entity_name: str,
+    version: str,
+    board_name: str,
+    node_id: Any,
+    distance: int,
+) -> bool:
+    print("")
+    print("[migration][question] fuzzy canonical-entity name match detected")
+    print(f"  board version: {version!r}")
+    print(f"  board name: {board_name!r}")
+    print(f"  node_id: {node_id!r}")
+    print(f"  node name: {node_name!r}")
+    print(f"  candidate canonical-entity: {candidate_entity_name!r}")
+    print(f"  edit distance: {distance}")
+    print("  choose whether this node belongs to the candidate canonical-entity:")
+    print("    1. yes")
+    print("    2. no (default)")
+
+    while True:
+        try:
+            answer = input("Select option [1-2] (Enter keeps 2): ").strip()
+        except EOFError as exc:
+            raise RuntimeError(
+                "Migration requires interactive input to resolve fuzzy canonical-entity name matches."
+            ) from exc
+
+        if not answer:
+            return False
+
+        if answer == "1":
+            return True
+
+        if answer == "2":
+            return False
+
+        print("Please enter 1 or 2.")
+
+
 def _as_text(value: Any, default: str = "") -> str:
     if value is None:
         return default
@@ -199,11 +240,15 @@ def _levenshtein_distance_at_most(text_a: str, text_b: str, max_distance: int) -
     return distance
 
 
-def _match_chunk_distance(text_a: str, text_b: str) -> int | None:
+def _match_text_distance(text_a: str, text_b: str) -> int | None:
     max_distance = _max_distance_for_match(text_a, text_b)
     if max_distance is None:
         return None
     return _levenshtein_distance_at_most(text_a, text_b, max_distance)
+
+
+def _match_chunk_distance(text_a: str, text_b: str) -> int | None:
+    return _match_text_distance(text_a, text_b)
 
 
 def _derive_edge_chunk_text(text_a: str, text_b: str) -> str:
@@ -308,20 +353,69 @@ def _sorted_edges_for_version(old_client, *, version: str) -> list[dict[str, Any
     return sorted(edges, key=lambda item: _as_int(item["edge_id"]))
 
 
-def _collect_entities(old_client, versions: list[dict[str, Any]]) -> dict[str, EntityAggregate]:
+def _resolve_entity_name_for_node(
+    *,
+    entities_by_name: dict[str, EntityAggregate],
+    node_name: str,
+    version: str,
+    board_name: str,
+    node_id: int,
+) -> str:
+    entity = entities_by_name.get(node_name)
+    if entity is not None:
+        return entity.name
+
+    fuzzy_candidates: list[tuple[int, int, str]] = []
+    for entity_name in entities_by_name:
+        distance = _match_text_distance(node_name, entity_name)
+        if distance is None:
+            continue
+        fuzzy_candidates.append((distance, abs(len(node_name) - len(entity_name)), entity_name))
+
+    fuzzy_candidates.sort()
+
+    for distance, _, entity_name in fuzzy_candidates:
+        if _prompt_entity_name_match_choice(
+            node_name=node_name,
+            candidate_entity_name=entity_name,
+            version=version,
+            board_name=board_name,
+            node_id=node_id,
+            distance=distance,
+        ):
+            return entity_name
+
+    return node_name
+
+
+def _collect_entities(
+    old_client, versions: list[dict[str, Any]]
+) -> tuple[dict[str, EntityAggregate], dict[tuple[str, int], str]]:
     entities_by_name: dict[str, EntityAggregate] = {}
+    node_entity_name_map: dict[tuple[str, int], str] = {}
 
     for version_meta in versions:
         version = _as_text(version_meta["version"])
+        board_name = _as_text(version_meta.get("name"), default=version)
         for node in _sorted_nodes_for_version(old_client, version=version):
+            node_id = _as_int(node["node_id"])
             node_name = _normalize_text(node.get("name"))
             if not node_name:
                 raise ValueError(f"Node without name in version {version!r}: {node}")
 
-            entity = entities_by_name.get(node_name)
+            entity_name = _resolve_entity_name_for_node(
+                entities_by_name=entities_by_name,
+                node_name=node_name,
+                version=version,
+                board_name=board_name,
+                node_id=node_id,
+            )
+            entity = entities_by_name.get(entity_name)
             if entity is None:
-                entity = EntityAggregate(name=node_name)
-                entities_by_name[node_name] = entity
+                entity = EntityAggregate(name=entity_name)
+                entities_by_name[entity_name] = entity
+
+            node_entity_name_map[(version, node_id)] = entity.name
 
             node_type = _normalize_optional_text(node.get("node_type"))
             if node_type:
@@ -349,7 +443,7 @@ def _collect_entities(old_client, versions: list[dict[str, Any]]) -> dict[str, E
             )
         entity.en_id = f"ce-{index}"
 
-    return entities_by_name
+    return entities_by_name, node_entity_name_map
 
 
 def _create_entities(new_client, entities_by_name: dict[str, EntityAggregate]) -> None:
@@ -385,7 +479,7 @@ def migrate(old_client, new_client) -> bool:
     - created the target investigation record in new_DB.
     """
     versions = _sorted_versions(old_client)
-    entities_by_name = _collect_entities(old_client, versions)
+    entities_by_name, node_entity_name_map = _collect_entities(old_client, versions)
     _create_entities(new_client, entities_by_name)
 
     next_node_id = 1
@@ -420,8 +514,8 @@ def migrate(old_client, new_client) -> bool:
             next_node_id += 1
 
             node_id_map[(version, old_node_id)] = new_node_id
-            node_name = _normalize_text(old_node.get("name"))
-            entity = entities_by_name[node_name]
+            entity_name = node_entity_name_map[(version, old_node_id)]
+            entity = entities_by_name[entity_name]
             assert entity.en_id is not None
 
             _run_new_write(

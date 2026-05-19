@@ -1,0 +1,6 @@
+match
+  $node isa node, has n_id {n_id};
+  $link isa entity-has-node(can-entity: $entity, node: $node);
+delete
+  $link;
+end;

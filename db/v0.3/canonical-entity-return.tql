@@ -9,6 +9,12 @@ fetch {{
       $entity has picture_path $picture_path;
     return {{ $picture_path }};
   ],
+  "merged_to": (
+    match
+      entity-merged-to(source: $entity, target: $target);
+      $target has en_id $target_en_id;
+    return first $target_en_id;
+  ),
   "investigation_name": (
     match
       inv-has-entity(investigation: $inv, can-entity: $entity);
