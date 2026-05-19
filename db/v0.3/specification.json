@@ -144,6 +144,12 @@
     "output": null
   },
   {
+    "operation": "canonical-entity-update-id",
+    "file": "canonical-entity-update-id.tql",
+    "params": ["en_id", "new_en_id"],
+    "output": null
+  },
+  {
     "operation": "canonical-entity-clear-picture-paths",
     "file": "canonical-entity-clear-picture-paths.tql",
     "params": ["en_id"],

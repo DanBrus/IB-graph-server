@@ -1,6 +1,6 @@
 match
-  $source isa canonical-entity, has en_id "{source_en_id}";
-  $target isa canonical-entity, has en_id "{target_en_id}";
+  $source isa canonical-entity, has en_id {source_en_id};
+  $target isa canonical-entity, has en_id {target_en_id};
 insert
   entity-merged-to(source: $source, target: $target);
 end;

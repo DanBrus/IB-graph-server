@@ -15,6 +15,7 @@ from graph_models import (
 from graph_service import (
     BoardSyncError,
     BoardVersionResolutionError,
+    CanonicalEntityAnalysisError,
     CanonicalEntitySyncError,
     GraphService,
 )
@@ -152,6 +153,28 @@ def get_canonical_entities():
     return service.get_canonical_entities()
 
 
+@app.get("/analyze/canonical-entity", response_model=BoardDTO)
+def analyze_canonical_entity(
+    ce_id: int = Query(...),
+    entity_sizes: str = Query(..., alias="entitySizes"),
+):
+    """
+    Аналитический граф вокруг canonical-entity:
+    - ce_id: id целевой canonical-entity
+    - entitySizes: JSON-объект размеров карточек по entity_type
+    """
+    try:
+        return service.analyze_canonical_entity(
+            ce_id=ce_id,
+            entity_sizes=entity_sizes,
+        )
+    except CanonicalEntityAnalysisError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=exc.detail,
+        ) from exc
+
+
 @app.put("/graph/canonical-entities", response_model=BasicResponseDTO)
 def update_canonical_entities(payload: List[CanonicalEntityDTO]):
     """
@@ -172,7 +195,7 @@ def update_canonical_entities(payload: List[CanonicalEntityDTO]):
 @app.get("/graph/free-ids", response_model=FreeIdsDTO)
 def get_free_ids():
     """
-    Минимальные свободные id для node / edge / chunk.
+    Минимальные свободные id для canonical-entity / node / edge / chunk.
     """
     return service.get_free_ids()
 

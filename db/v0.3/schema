@@ -9,7 +9,7 @@ attribute description,
 attribute is_published,
  value boolean;
 attribute en_id,
- value string;
+ value integer;
 attribute entity_type,
  value string;
 attribute picture_path,

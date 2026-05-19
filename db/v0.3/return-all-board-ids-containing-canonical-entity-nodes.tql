@@ -1,5 +1,5 @@
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
 fetch {{
   "board_ids": [
     match

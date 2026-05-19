@@ -2,7 +2,7 @@ match
   $inv isa investigation, has name "{investigation_name}";
 insert
   $entity isa canonical-entity,
-    has en_id "{en_id}",
+    has en_id {en_id},
     has name "{name}",
     has entity_type "{entity_type}";
   inv-has-entity(investigation: $inv, can-entity: $entity);

@@ -348,6 +348,7 @@ def test_project_v03_templates_load_and_format() -> None:
     assert driver.has_operation("board-create")
     assert driver.has_operation("investigation-delete")
     assert driver.has_operation("return-all-text-chunks-in-edge")
+    assert driver.has_operation("canonical-entity-update-id")
 
     board_create = driver.get_operation(
         "board-create",
@@ -382,6 +383,15 @@ def test_project_v03_templates_load_and_format() -> None:
     assert '"node_ids": [' in board_return
     assert '"edge_ids": [' in board_return
     assert "1.0dec" in board_return
+
+    canonical_entity_update_id = driver.get_operation(
+        "canonical-entity-update-id",
+        en_id=7,
+        new_en_id=3,
+    )
+    assert "has en_id 7" in canonical_entity_update_id
+    assert "has en_id 3" in canonical_entity_update_id
+    assert '"7"' not in canonical_entity_update_id
 
     return_chunks = driver.get_operation(
         "return-all-text-chunks-in-edge",

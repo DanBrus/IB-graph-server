@@ -1,5 +1,5 @@
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $node isa node, has n_id {n_id};
   board-has-node(board: $board, member-node: $node);
   inv-has-board(investigation: $inv, board: $board);

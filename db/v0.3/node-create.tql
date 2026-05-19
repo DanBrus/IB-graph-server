@@ -1,6 +1,6 @@
 match
   $board isa board, has b_id {b_id};
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   inv-has-board(investigation: $inv, board: $board);
   inv-has-entity(investigation: $inv, can-entity: $entity);
 insert

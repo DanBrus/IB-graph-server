@@ -1,5 +1,5 @@
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $merge isa entity-merged-to(source: $entity, target: $target);
 select $merge;
 distinct;
@@ -8,7 +8,7 @@ delete
 end;
 
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $merge isa entity-merged-to(source: $source, target: $entity);
 select $merge;
 distinct;
@@ -17,7 +17,7 @@ delete
 end;
 
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   {{
     $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
@@ -33,7 +33,7 @@ delete
 end;
 
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   {{
     $edge isa edge, links (endpoint-1: $node, endpoint-2: $other);
@@ -49,7 +49,7 @@ delete
 end;
 
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   $node-link isa node-has-chunk(node-owner: $node, chunk: $chunk);
 select $node-link, $chunk;
@@ -60,7 +60,7 @@ delete
 end;
 
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $entity-link isa entity-has-node(can-entity: $entity, node: $node);
   $board-node-link isa board-has-node(board: $board, member-node: $node);
 select $entity-link, $board-node-link, $node;
@@ -72,7 +72,7 @@ delete
 end;
 
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $inv-link isa inv-has-entity(investigation: $inv, can-entity: $entity);
 delete
   $inv-link;

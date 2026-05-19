@@ -9,10 +9,11 @@ class ChunkDTO(BaseModel):
     description: str
     chunk_priority: int
     timecode: str
+    board_source: Optional[float] = None
 
 class NodeDTO(BaseModel):
     node_id: int
-    ce_id: str
+    ce_id: int
     name: str
     pos_x: float
     pos_y: float
@@ -27,13 +28,14 @@ class EdgeDTO(BaseModel):
     description: List[ChunkDTO] = Field(default_factory=list)
 
 class CanonicalEntityDTO(BaseModel):
-    en_id: str
+    en_id: int
     name: str
     entity_type: str
     picture_paths: List[str] = Field(default_factory=list)
-    merged_to: Optional[str] = None
+    merged_to: Optional[int] = None
 
 class FreeIdsDTO(BaseModel):
+    ce_id: int
     node_id: int
     edge_id: int
     chunk_id: int

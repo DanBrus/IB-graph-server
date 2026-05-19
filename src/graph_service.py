@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import math
 import time
 from decimal import Decimal, InvalidOperation
 from functools import wraps
@@ -47,6 +49,14 @@ class BoardSyncError(ValueError):
         self.detail = detail
 
 
+class CanonicalEntityAnalysisError(ValueError):
+    """Raised when canonical-entity analysis request is invalid."""
+
+    def __init__(self, detail: Any):
+        super().__init__(str(detail))
+        self.detail = detail
+
+
 class GraphService:
     """
     Сервис graph API поверх схемы TypeDB v0.3.
@@ -61,6 +71,7 @@ class GraphService:
             bootstrap_default_board=False,
         )
         self._free_ids = {
+            "ce_id": 1,
             "node_id": 1,
             "edge_id": 1,
             "chunk_id": 1,
@@ -110,6 +121,16 @@ class GraphService:
     def _as_optional_text(self, value: Any) -> str | None:
         text = self._as_text(value).strip()
         return text if text else None
+
+    def _as_optional_int(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            return int(stripped)
+        return int(value)
 
     def _as_bool(self, value: Any) -> bool:
         if isinstance(value, bool):
@@ -214,8 +235,8 @@ class GraphService:
             if not isinstance(raw_entity, dict):
                 continue
 
-            entity_id = self._as_text(raw_entity.get("en_id"))
-            if not entity_id:
+            entity_id = self._as_optional_int(raw_entity.get("en_id"))
+            if entity_id is None:
                 continue
 
             picture_paths = [
@@ -229,7 +250,7 @@ class GraphService:
                     "name": self._as_text(raw_entity.get("name")),
                     "entity_type": self._as_text(raw_entity.get("entity_type")),
                     "picture_paths": picture_paths,
-                    "merged_to": self._as_optional_text(
+                    "merged_to": self._as_optional_int(
                         self._unwrap_singleton_value(raw_entity.get("merged_to"))
                     ),
                 }
@@ -250,6 +271,429 @@ class GraphService:
         )
         return self._normalize_canonical_entities_payload(payload)
 
+    def _parse_analysis_entity_sizes(self, raw_value: str) -> dict[str, dict[str, float]]:
+        try:
+            parsed = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            raise CanonicalEntityAnalysisError(
+                {"error": "entitySizes must be valid JSON."}
+            ) from exc
+
+        if not isinstance(parsed, dict) or not parsed:
+            raise CanonicalEntityAnalysisError(
+                {"error": "entitySizes must be a non-empty JSON object."}
+            )
+
+        entity_sizes: dict[str, dict[str, float]] = {}
+        for raw_entity_type, raw_size in parsed.items():
+            entity_type = self._as_optional_text(raw_entity_type)
+            if entity_type is None:
+                raise CanonicalEntityAnalysisError(
+                    {"error": "entitySizes contains an empty entity_type key."}
+                )
+
+            if isinstance(raw_size, dict):
+                width_raw = raw_size.get("width")
+                height_raw = raw_size.get("height")
+            elif isinstance(raw_size, list) and len(raw_size) == 2:
+                width_raw, height_raw = raw_size
+            else:
+                raise CanonicalEntityAnalysisError(
+                    {
+                        "error": "Each entitySizes value must be an object with width/height "
+                        "or a two-item list [width, height].",
+                        "entity_type": entity_type,
+                    }
+                )
+
+            try:
+                width = self._as_float(width_raw)
+                height = self._as_float(height_raw)
+            except (TypeError, ValueError) as exc:
+                raise CanonicalEntityAnalysisError(
+                    {
+                        "error": "Entity size contains invalid numeric values.",
+                        "entity_type": entity_type,
+                    }
+                ) from exc
+
+            if width <= 0 or height <= 0:
+                raise CanonicalEntityAnalysisError(
+                    {
+                        "error": "Entity size must be positive.",
+                        "entity_type": entity_type,
+                    }
+                )
+
+            entity_sizes[entity_type] = {
+                "width": width,
+                "height": height,
+            }
+
+        return entity_sizes
+
+    def _load_investigation_graph(self) -> dict[str, Any]:
+        boards = self._list_boards()
+        entities = self._load_canonical_entities()
+        entities_by_id = {
+            entity["en_id"]: dict(entity)
+            for entity in entities
+        }
+
+        if not boards:
+            return {
+                "boards": [],
+                "entities_by_id": entities_by_id,
+                "nodes_by_id": {},
+                "edges": [],
+            }
+
+        top_level_queries: list[tuple[str, str]] = []
+        for board in boards:
+            board_id = board["b_id"]
+            board_key = self._stringify_board_id(board_id)
+            top_level_queries.append(
+                (
+                    f"nodes:{board_key}",
+                    self._build_query("return-all-nodes-in-board", b_id=board_id),
+                )
+            )
+            top_level_queries.append(
+                (
+                    f"edges:{board_key}",
+                    self._build_query("return-all-edges-in-board", b_id=board_id),
+                )
+            )
+
+        top_level_docs = self.client._execute_read_queries(top_level_queries)
+
+        nodes_by_id: dict[int, dict[str, Any]] = {}
+        edges: list[dict[str, Any]] = []
+        chunk_queries: list[tuple[str, str]] = []
+
+        for board in boards:
+            board_id = board["b_id"]
+            board_key = self._stringify_board_id(board_id)
+            board_source = self._serialize_board_id(board_id)
+
+            nodes_payload = self._first_doc(
+                top_level_docs.get(f"nodes:{board_key}", []),
+                label=f"return-all-nodes-in-board:{board_key}",
+                allow_empty=True,
+            )
+            for raw_node in nodes_payload.get("nodes", []):
+                if not isinstance(raw_node, dict):
+                    continue
+
+                node_id = self._as_int(raw_node.get("n_id"))
+                entity_id = self._as_optional_int(
+                    self._unwrap_singleton_value(raw_node.get("entity_en_id"))
+                )
+                if entity_id is None:
+                    raise CanonicalEntityAnalysisError(
+                        {
+                            "error": "Node returned without canonical-entity id.",
+                            "node_id": node_id,
+                            "b_id": board_source,
+                        }
+                    )
+                if entity_id not in entities_by_id:
+                    raise CanonicalEntityAnalysisError(
+                        {
+                            "error": "Node references unknown canonical-entity.",
+                            "node_id": node_id,
+                            "ce_id": entity_id,
+                            "b_id": board_source,
+                        }
+                    )
+
+                nodes_by_id[node_id] = {
+                    "node_id": node_id,
+                    "ce_id": entity_id,
+                    "board_id": board_id,
+                    "board_source": board_source,
+                    "chunks": [],
+                }
+                chunk_queries.append(
+                    (
+                        f"node-chunks:{node_id}",
+                        self._build_query("return-all-text-chunks-in-node", n_id=node_id),
+                    )
+                )
+
+            edges_payload = self._first_doc(
+                top_level_docs.get(f"edges:{board_key}", []),
+                label=f"return-all-edges-in-board:{board_key}",
+                allow_empty=True,
+            )
+            for raw_edge in edges_payload.get("edges", []):
+                if not isinstance(raw_edge, dict):
+                    continue
+
+                edge_id = self._as_int(raw_edge.get("ed_id"))
+                edges.append(
+                    {
+                        "edge_id": edge_id,
+                        "node1": self._as_int(raw_edge.get("endpoint_1_n_id")),
+                        "node2": self._as_int(raw_edge.get("endpoint_2_n_id")),
+                        "board_id": board_id,
+                        "board_source": board_source,
+                        "chunks": [],
+                    }
+                )
+                chunk_queries.append(
+                    (
+                        f"edge-chunks:{edge_id}",
+                        self._build_query("return-all-text-chunks-in-edge", ed_id=edge_id),
+                    )
+                )
+
+        chunk_docs = self.client._execute_read_queries(chunk_queries) if chunk_queries else {}
+
+        for node_id, node in nodes_by_id.items():
+            payload = self._first_doc(
+                chunk_docs.get(f"node-chunks:{node_id}", []),
+                label=f"return-all-text-chunks-in-node:{node_id}",
+                allow_empty=True,
+            )
+            node["chunks"] = self._normalize_chunk_payload(payload)
+
+        for edge in edges:
+            edge_id = edge["edge_id"]
+            payload = self._first_doc(
+                chunk_docs.get(f"edge-chunks:{edge_id}", []),
+                label=f"return-all-text-chunks-in-edge:{edge_id}",
+                allow_empty=True,
+            )
+            edge["chunks"] = self._normalize_chunk_payload(payload)
+
+        return {
+            "boards": boards,
+            "entities_by_id": entities_by_id,
+            "nodes_by_id": nodes_by_id,
+            "edges": edges,
+        }
+
+    def _build_merge_children_map(
+        self,
+        entities_by_id: dict[int, dict[str, Any]],
+    ) -> tuple[dict[int, int], dict[int, list[int]]]:
+        merge_map: dict[int, int] = {}
+        children_by_id: dict[int, list[int]] = {}
+
+        for entity_id, entity in entities_by_id.items():
+            merged_to = self._as_optional_int(entity.get("merged_to"))
+            if merged_to is None:
+                continue
+            if merged_to not in entities_by_id:
+                raise CanonicalEntityAnalysisError(
+                    {
+                        "error": "canonical-entity merged_to points to unknown entity.",
+                        "en_id": entity_id,
+                        "merged_to": merged_to,
+                    }
+                )
+            merge_map[entity_id] = merged_to
+            children_by_id.setdefault(merged_to, []).append(entity_id)
+
+        for entity_id in children_by_id:
+            children_by_id[entity_id].sort()
+
+        return merge_map, children_by_id
+
+    def _collect_descendant_entity_ids(
+        self,
+        root_entity_id: int,
+        children_by_id: dict[int, list[int]],
+    ) -> set[int]:
+        descendants: set[int] = set()
+        stack = [root_entity_id]
+
+        while stack:
+            current = stack.pop()
+            if current in descendants:
+                continue
+            descendants.add(current)
+            stack.extend(children_by_id.get(current, []))
+
+        return descendants
+
+    def _resolve_analysis_linked_card_id(
+        self,
+        *,
+        entity_id: int,
+        merge_map: dict[int, int],
+        core_entity_ids: set[int],
+    ) -> int:
+        current = entity_id
+        path: set[int] = set()
+
+        while True:
+            if current in path:
+                raise CanonicalEntityAnalysisError(
+                    {
+                        "error": "Merged-to cycle detected during analysis.",
+                        "en_id": entity_id,
+                    }
+                )
+            path.add(current)
+
+            merged_to = merge_map.get(current)
+            if merged_to is None or merged_to in core_entity_ids:
+                return current
+            current = merged_to
+
+    def _analysis_priority_offset(self, board_id: Any) -> int:
+        scaled = self._as_decimal(board_id) * Decimal("100")
+        return int(scaled.to_integral_value())
+
+    def _boost_chunks_for_analysis(
+        self,
+        chunks: list[dict[str, Any]],
+        *,
+        board_id: Any,
+    ) -> list[dict[str, Any]]:
+        board_source = self._serialize_board_id(board_id)
+        priority_offset = self._analysis_priority_offset(board_id)
+
+        return [
+            {
+                "c_id": self._as_int(chunk.get("c_id")),
+                "description": self._as_text(chunk.get("description")),
+                "chunk_priority": priority_offset + self._as_int(chunk.get("chunk_priority")),
+                "timecode": self._as_text(chunk.get("timecode")),
+                "board_source": board_source,
+            }
+            for chunk in chunks
+        ]
+
+    def _sort_chunks_for_output(self, chunks: list[dict[str, Any]]) -> None:
+        chunks.sort(
+            key=lambda item: (
+                self._as_int(item.get("chunk_priority")),
+                self._as_float(item.get("board_source"), default=0.0),
+                self._as_int(item.get("c_id")),
+                self._as_text(item.get("description")),
+            )
+        )
+
+    def _card_radius_for_entity_type(
+        self,
+        entity_type: str,
+        entity_sizes: dict[str, dict[str, float]],
+    ) -> float:
+        if entity_type not in entity_sizes:
+            raise CanonicalEntityAnalysisError(
+                {
+                    "error": "entitySizes does not contain size for canonical-entity type.",
+                    "entity_type": entity_type,
+                }
+            )
+
+        size = entity_sizes[entity_type]
+        return math.hypot(size["width"] / 2.0, size["height"] / 2.0)
+
+    def _layout_analysis_cards(
+        self,
+        *,
+        core_card: dict[str, Any],
+        linked_cards: list[dict[str, Any]],
+        entity_sizes: dict[str, dict[str, float]],
+    ) -> list[dict[str, Any]]:
+        core_entity_type = self._as_text(core_card.get("node_type"))
+        core_radius = self._card_radius_for_entity_type(core_entity_type, entity_sizes)
+        core_card["pos_x"] = 0.0
+        core_card["pos_y"] = 0.0
+
+        ordered_linked_cards = sorted(
+            linked_cards,
+            key=lambda item: (
+                -self._as_int(item.get("link_weight")),
+                self._as_text(item.get("name")),
+                self._as_int(item.get("ce_id")),
+            ),
+        )
+        if not ordered_linked_cards:
+            return ordered_linked_cards
+
+        card_gap = 48.0
+        ring_gap = 96.0
+        min_angular_step_deg = 5.0
+        max_cards_per_ring = max(1, int(360 // min_angular_step_deg))
+        previous_outer_radius = core_radius
+        cursor = 0
+        ring_index = 0
+
+        while cursor < len(ordered_linked_cards):
+            ring_count = 0
+            ring_max_radius = 0.0
+
+            while cursor + ring_count < len(ordered_linked_cards):
+                candidate_cards = ordered_linked_cards[cursor: cursor + ring_count + 1]
+                candidate_max_radius = max(
+                    self._card_radius_for_entity_type(
+                        self._as_text(card.get("node_type")),
+                        entity_sizes,
+                    )
+                    for card in candidate_cards
+                )
+                candidate_count = ring_count + 1
+                if candidate_count > max_cards_per_ring:
+                    break
+
+                min_center_radius = previous_outer_radius + candidate_max_radius + ring_gap
+                if candidate_count == 1:
+                    required_center_radius = min_center_radius
+                else:
+                    chord = 2 * candidate_max_radius + card_gap
+                    required_center_radius = max(
+                        min_center_radius,
+                        chord / (2 * math.sin(math.pi / candidate_count)),
+                    )
+
+                angular_step = 360.0 / candidate_count
+                if angular_step < min_angular_step_deg:
+                    break
+
+                ring_count = candidate_count
+                ring_max_radius = candidate_max_radius
+
+            if ring_count == 0:
+                ring_count = 1
+                ring_max_radius = self._card_radius_for_entity_type(
+                    self._as_text(ordered_linked_cards[cursor].get("node_type")),
+                    entity_sizes,
+                )
+
+            ring_cards = ordered_linked_cards[cursor: cursor + ring_count]
+            min_center_radius = previous_outer_radius + ring_max_radius + ring_gap
+            if ring_count == 1:
+                center_radius = min_center_radius
+                angular_step = 360.0
+            else:
+                chord = 2 * ring_max_radius + card_gap
+                center_radius = max(
+                    min_center_radius,
+                    chord / (2 * math.sin(math.pi / ring_count)),
+                )
+                angular_step = 360.0 / ring_count
+
+            angle_offset = -90.0
+            if ring_count > 1 and ring_index % 2 == 1:
+                angle_offset += angular_step / 2.0
+
+            for ring_position, card in enumerate(ring_cards):
+                angle_deg = angle_offset + ring_position * angular_step
+                angle_rad = math.radians(angle_deg)
+                card["pos_x"] = round(center_radius * math.cos(angle_rad), 3)
+                card["pos_y"] = round(center_radius * math.sin(angle_rad), 3)
+
+            previous_outer_radius = center_radius + ring_max_radius
+            cursor += ring_count
+            ring_index += 1
+
+        return ordered_linked_cards
+
     def _normalize_requested_canonical_entity(self, entity: Any) -> dict[str, Any]:
         if hasattr(entity, "model_dump"):
             raw_entity = entity.model_dump()
@@ -260,10 +704,10 @@ class GraphService:
         else:
             raw_entity = dict(vars(entity))
 
-        en_id = self._as_optional_text(raw_entity.get("en_id"))
+        en_id = self._as_optional_int(raw_entity.get("en_id"))
         name = self._as_optional_text(raw_entity.get("name"))
         entity_type = self._as_optional_text(raw_entity.get("entity_type"))
-        merged_to = self._as_optional_text(raw_entity.get("merged_to"))
+        merged_to = self._as_optional_int(raw_entity.get("merged_to"))
 
         if en_id is None:
             raise CanonicalEntitySyncError({"error": "canonical-entity en_id must not be empty."})
@@ -301,8 +745,8 @@ class GraphService:
 
     def _normalize_requested_canonical_entities(self, entities: list[Any]) -> list[dict[str, Any]]:
         normalized_entities: list[dict[str, Any]] = []
-        duplicate_ids: set[str] = set()
-        seen_ids: set[str] = set()
+        duplicate_ids: set[int] = set()
+        seen_ids: set[int] = set()
 
         for entity in entities:
             normalized_entity = self._normalize_requested_canonical_entity(entity)
@@ -337,11 +781,11 @@ class GraphService:
 
     def _resolve_deleted_merge_target(
         self,
-        target_id: str,
-        current_merge_map: dict[str, str],
-        deleted_ids: set[str],
-    ) -> str | None:
-        path: list[str] = []
+        target_id: int,
+        current_merge_map: dict[int, int],
+        deleted_ids: set[int],
+    ) -> int | None:
+        path: list[int] = []
         current_target = target_id
 
         while current_target in deleted_ids:
@@ -361,15 +805,15 @@ class GraphService:
 
         return current_target
 
-    def _validate_merge_cycles(self, merge_map: dict[str, str]) -> None:
-        visited: set[str] = set()
+    def _validate_merge_cycles(self, merge_map: dict[int, int]) -> None:
+        visited: set[int] = set()
 
         for start in merge_map:
             if start in visited:
                 continue
 
-            path: list[str] = []
-            positions: dict[str, int] = {}
+            path: list[int] = []
+            positions: dict[int, int] = {}
             current = start
 
             while current in merge_map:
@@ -390,7 +834,7 @@ class GraphService:
 
             visited.update(path)
 
-    def _blocking_board_ids_by_entity(self, entity_ids: list[str]) -> dict[str, list[float]]:
+    def _blocking_board_ids_by_entity(self, entity_ids: list[int]) -> dict[int, list[float]]:
         operations = [
             (
                 f"blocking-boards:{entity_id}",
@@ -403,7 +847,7 @@ class GraphService:
         ]
         raw_results = self.client._execute_read_queries(operations) if operations else {}
 
-        blocking_by_entity: dict[str, list[float]] = {}
+        blocking_by_entity: dict[int, list[float]] = {}
         for entity_id in entity_ids:
             payload = self._first_doc(
                 raw_results.get(f"blocking-boards:{entity_id}", []),
@@ -424,7 +868,7 @@ class GraphService:
         self,
         operations: list[tuple[str, str]],
         *,
-        en_id: str,
+        en_id: int,
         picture_paths: list[str],
     ) -> None:
         operations.append(
@@ -527,7 +971,7 @@ class GraphService:
         except (TypeError, ValueError) as exc:
             raise BoardSyncError({"error": "Node contains invalid numeric fields."}) from exc
 
-        ce_id = self._as_optional_text(raw_node.get("ce_id"))
+        ce_id = self._as_optional_int(raw_node.get("ce_id"))
         if ce_id is None:
             raise BoardSyncError(
                 {
@@ -836,6 +1280,18 @@ class GraphService:
 
         return node_records, edge_records, chunk_records
 
+    def _collect_canonical_entity_records(self) -> dict[int, dict[str, Any]]:
+        entities = self._load_canonical_entities()
+        return {
+            self._as_int(entity["en_id"]): {
+                "name": self._as_text(entity.get("name")),
+                "entity_type": self._as_text(entity.get("entity_type")),
+                "merged_to": self._as_optional_int(entity.get("merged_to")),
+                "picture_paths": list(entity.get("picture_paths", [])),
+            }
+            for entity in entities
+        }
+
     def _smallest_free_positive_id(self, ids: set[int]) -> int:
         candidate = 1
         while candidate in ids:
@@ -876,6 +1332,46 @@ class GraphService:
                         new_n_id=temp_ids[node_id],
                         new_pos_x=record["pos_x"],
                         new_pos_y=record["pos_y"],
+                    ),
+                )
+            )
+
+    def _append_canonical_entity_id_defragmentation_queries(
+        self,
+        operations: list[tuple[str, str]],
+        *,
+        entity_records: dict[int, dict[str, Any]],
+        mapping: dict[int, int],
+    ) -> None:
+        if not mapping:
+            return
+
+        temp_start = max(entity_records) + 1 if entity_records else 1
+        temp_ids = {
+            entity_id: temp_start + index
+            for index, entity_id in enumerate(sorted(mapping))
+        }
+
+        for entity_id in sorted(mapping):
+            operations.append(
+                (
+                    "canonical-entity-update-id",
+                    self._build_query(
+                        "canonical-entity-update-id",
+                        en_id=entity_id,
+                        new_en_id=temp_ids[entity_id],
+                    ),
+                )
+            )
+
+        for entity_id in sorted(mapping):
+            operations.append(
+                (
+                    "canonical-entity-update-id",
+                    self._build_query(
+                        "canonical-entity-update-id",
+                        en_id=temp_ids[entity_id],
+                        new_en_id=mapping[entity_id],
                     ),
                 )
             )
@@ -990,12 +1486,37 @@ class GraphService:
             )
 
     def _refresh_free_ids_state(self) -> None:
+        entity_records = self._collect_canonical_entity_records()
         node_records, edge_records, chunk_records = self._collect_global_graph_records()
         self._free_ids = {
+            "ce_id": self._smallest_free_positive_id(set(entity_records)),
             "node_id": self._smallest_free_positive_id(set(node_records)),
             "edge_id": self._smallest_free_positive_id(set(edge_records)),
             "chunk_id": self._smallest_free_positive_id(set(chunk_records)),
         }
+
+    def _defragment_canonical_entity_ids(
+        self,
+        *,
+        entity_records: dict[int, dict[str, Any]] | None = None,
+    ) -> int:
+        resolved_entity_records = entity_records or {}
+        if entity_records is None:
+            resolved_entity_records = self._collect_canonical_entity_records()
+
+        entity_mapping = self._build_id_defragmentation_map(set(resolved_entity_records))
+        if not entity_mapping:
+            return 0
+
+        write_operations: list[tuple[str, str]] = []
+        self._append_canonical_entity_id_defragmentation_queries(
+            write_operations,
+            entity_records=resolved_entity_records,
+            mapping=entity_mapping,
+        )
+        self.client._execute_write_queries(write_operations)
+        print(f"[GraphService] canonical-entity ids defragmented (count={len(entity_mapping)})")
+        return len(entity_mapping)
 
     def _defragment_node_ids(
         self,
@@ -1069,19 +1590,24 @@ class GraphService:
     def _defragment_ids(
         self,
         *,
+        defragment_ce_ids: bool = True,
         defragment_nodes: bool = True,
         defragment_edges: bool = True,
         defragment_chunks: bool = True,
     ) -> None:
-        if not any((defragment_nodes, defragment_edges, defragment_chunks)):
+        if not any((defragment_ce_ids, defragment_nodes, defragment_edges, defragment_chunks)):
             self._refresh_free_ids_state()
             return
 
+        entity_records = self._collect_canonical_entity_records()
         node_records, edge_records, chunk_records = self._collect_global_graph_records()
+        ce_count = 0
         edge_count = 0
         node_count = 0
         chunk_count = 0
 
+        if defragment_ce_ids:
+            ce_count = self._defragment_canonical_entity_ids(entity_records=entity_records)
         if defragment_edges:
             edge_count = self._defragment_edge_ids(edge_records=edge_records)
         if defragment_nodes:
@@ -1091,7 +1617,7 @@ class GraphService:
 
         print(
             "[GraphService] defragmentation summary "
-            f"(nodes={node_count}, edges={edge_count}, chunks={chunk_count})"
+            f"(ce={ce_count}, nodes={node_count}, edges={edge_count}, chunks={chunk_count})"
         )
         self._refresh_free_ids_state()
 
@@ -1148,6 +1674,9 @@ class GraphService:
                 "description": self._as_text(chunk.get("description")),
                 "chunk_priority": self._as_int(chunk.get("chunk_priority")),
                 "timecode": self._as_text(chunk.get("timecode")),
+                "board_source": None
+                if chunk.get("board_source") is None
+                else self._as_float(chunk.get("board_source")),
             }
             for chunk in chunks
         ]
@@ -1255,7 +1784,7 @@ class GraphService:
         nodes: list[dict[str, Any]] = []
         for raw_node in sorted(raw_nodes, key=lambda item: self._as_int(item.get("n_id"))):
             node_id = self._as_int(raw_node.get("n_id"))
-            entity_id = self._as_text(
+            entity_id = self._as_optional_int(
                 self._unwrap_singleton_value(raw_node.get("entity_en_id"))
             )
             entity = entities_by_id.get(entity_id)
@@ -1402,6 +1931,168 @@ class GraphService:
         entities = self._load_canonical_entities()
         print("[GraphService] canonical entities requested")
         return entities
+
+    @log_api_method_execution
+    def analyze_canonical_entity(
+        self,
+        *,
+        ce_id: Any,
+        entity_sizes: str,
+    ) -> BoardDTO:
+        started_at = time.perf_counter()
+        target_ce_id = self._as_optional_int(ce_id)
+        if target_ce_id is None:
+            raise CanonicalEntityAnalysisError(
+                {"error": "ce_id must not be empty."}
+            )
+
+        parsed_entity_sizes = self._parse_analysis_entity_sizes(entity_sizes)
+        graph = self._load_investigation_graph()
+        entities_by_id = graph["entities_by_id"]
+        nodes_by_id = graph["nodes_by_id"]
+        edges = graph["edges"]
+
+        target_entity = entities_by_id.get(target_ce_id)
+        if target_entity is None:
+            raise CanonicalEntityAnalysisError(
+                {
+                    "error": "canonical-entity was not found.",
+                    "ce_id": target_ce_id,
+                }
+            )
+
+        merge_map, children_by_id = self._build_merge_children_map(entities_by_id)
+        core_entity_ids = self._collect_descendant_entity_ids(target_ce_id, children_by_id)
+
+        nodes_by_ce_id: dict[int, list[dict[str, Any]]] = {}
+        for node in nodes_by_id.values():
+            nodes_by_ce_id.setdefault(node["ce_id"], []).append(node)
+
+        def build_card_description(member_ce_ids: set[int]) -> list[dict[str, Any]]:
+            collected_chunks: list[dict[str, Any]] = []
+            for member_ce_id in sorted(member_ce_ids):
+                for node in nodes_by_ce_id.get(member_ce_id, []):
+                    collected_chunks.extend(
+                        self._boost_chunks_for_analysis(
+                            node.get("chunks", []),
+                            board_id=node["board_id"],
+                        )
+                    )
+            self._sort_chunks_for_output(collected_chunks)
+            return collected_chunks
+
+        linked_card_ids: set[int] = set()
+        link_chunks_by_card_id: dict[int, list[dict[str, Any]]] = {}
+
+        for edge in edges:
+            node1 = nodes_by_id.get(edge["node1"])
+            node2 = nodes_by_id.get(edge["node2"])
+            if node1 is None or node2 is None:
+                continue
+
+            node1_in_core = node1["ce_id"] in core_entity_ids
+            node2_in_core = node2["ce_id"] in core_entity_ids
+            if node1_in_core == node2_in_core:
+                continue
+
+            external_entity_id = node2["ce_id"] if node1_in_core else node1["ce_id"]
+            if external_entity_id in core_entity_ids:
+                continue
+
+            linked_card_id = self._resolve_analysis_linked_card_id(
+                entity_id=external_entity_id,
+                merge_map=merge_map,
+                core_entity_ids=core_entity_ids,
+            )
+            if linked_card_id == target_ce_id:
+                continue
+
+            linked_card_ids.add(linked_card_id)
+            link_chunks_by_card_id.setdefault(linked_card_id, []).extend(
+                self._boost_chunks_for_analysis(
+                    edge.get("chunks", []),
+                    board_id=edge["board_id"],
+                )
+            )
+
+        core_description = build_card_description(core_entity_ids)
+        core_picture_paths = list(target_entity.get("picture_paths", []))
+        core_card = {
+            "node_id": target_ce_id,
+            "ce_id": target_ce_id,
+            "name": self._as_text(target_entity.get("name")),
+            "pos_x": 0.0,
+            "pos_y": 0.0,
+            "node_type": self._as_text(target_entity.get("entity_type")),
+            "picture_path": core_picture_paths[-1] if core_picture_paths else None,
+            "description": self._serialize_chunks(core_description),
+        }
+
+        linked_cards: list[dict[str, Any]] = []
+        for linked_card_id in sorted(linked_card_ids):
+            linked_entity = entities_by_id.get(linked_card_id)
+            if linked_entity is None:
+                raise CanonicalEntityAnalysisError(
+                    {
+                        "error": "Linked canonical-entity was not found.",
+                        "ce_id": linked_card_id,
+                    }
+                )
+
+            member_ce_ids = self._collect_descendant_entity_ids(linked_card_id, children_by_id)
+            card_description = build_card_description(member_ce_ids)
+            link_description = list(link_chunks_by_card_id.get(linked_card_id, []))
+            self._sort_chunks_for_output(link_description)
+            linked_picture_paths = list(linked_entity.get("picture_paths", []))
+
+            linked_cards.append(
+                {
+                    "node_id": linked_card_id,
+                    "ce_id": linked_card_id,
+                    "name": self._as_text(linked_entity.get("name")),
+                    "pos_x": 0.0,
+                    "pos_y": 0.0,
+                    "node_type": self._as_text(linked_entity.get("entity_type")),
+                    "picture_path": linked_picture_paths[-1] if linked_picture_paths else None,
+                    "description": self._serialize_chunks(card_description),
+                    "_link_description": self._serialize_chunks(link_description),
+                    "link_weight": len(link_description),
+                }
+            )
+
+        linked_cards = self._layout_analysis_cards(
+            core_card=core_card,
+            linked_cards=linked_cards,
+            entity_sizes=parsed_entity_sizes,
+        )
+
+        response_edges: list[dict[str, Any]] = []
+        for edge_index, linked_card in enumerate(linked_cards):
+            response_edges.append(
+                {
+                    "edge_id": edge_index,
+                    "node1": core_card["node_id"],
+                    "node2": linked_card["node_id"],
+                    "description": linked_card.pop("_link_description", []),
+                }
+            )
+            linked_card.pop("link_weight", None)
+
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        print(
+            "[GraphService] canonical-entity analysis assembled "
+            f"(ce_id={target_ce_id}, linked_cards={len(linked_cards)}, "
+            f"edges={len(response_edges)}, duration_ms={duration_ms:.2f})"
+        )
+
+        return {
+            "nodes": [core_card, *linked_cards],
+            "edges": response_edges,
+            "version": 0.0,
+            "description": f"Все данные о {self._as_text(target_entity.get('name'))}",
+            "board_name": self._as_text(target_entity.get("name")),
+            "is_published": None,
+        }
 
     @log_api_method_execution
     def get_free_ids(self) -> dict[str, int]:
@@ -1628,6 +2319,16 @@ class GraphService:
                     )
 
         self.client._execute_write_queries(write_operations)
+        ce_ids_changed = bool(added_ids or deleted_ids)
+        if ce_ids_changed:
+            self._defragment_ids(
+                defragment_ce_ids=True,
+                defragment_nodes=False,
+                defragment_edges=False,
+                defragment_chunks=False,
+            )
+        else:
+            self._refresh_free_ids_state()
         print(
             "[GraphService] canonical entities updated "
             f"(added={len(added_ids)}, deleted={len(deleted_ids)}, updated={len(changed_ids)})"
@@ -1676,7 +2377,7 @@ class GraphService:
             for edge in current_board["edges"]
         }
 
-        ce_to_node_ids: dict[str, list[int]] = {}
+        ce_to_node_ids: dict[int, list[int]] = {}
         for node in requested_nodes:
             ce_to_node_ids.setdefault(node["ce_id"], []).append(node["node_id"])
 
@@ -1856,7 +2557,7 @@ class GraphService:
 
         node_ids_to_delete = sorted(set(current_nodes_by_id) - set(requested_nodes_by_id))
         node_ids_to_create = sorted(added_node_ids)
-        nodes_to_rebind: list[tuple[int, str]] = []
+        nodes_to_rebind: list[tuple[int, int]] = []
         node_position_updates: list[dict[str, Any]] = []
         node_chunk_deletes: list[int] = []
         node_chunk_updates: list[dict[str, Any]] = []
@@ -1867,7 +2568,7 @@ class GraphService:
             if desired_node is None:
                 continue
 
-            if self._as_text(current_node.get("ce_id")) != desired_node["ce_id"]:
+            if self._as_int(current_node.get("ce_id")) != desired_node["ce_id"]:
                 nodes_to_rebind.append((node_id, desired_node["ce_id"]))
 
             if (
@@ -2048,6 +2749,7 @@ class GraphService:
 
         if node_ids_changed or edge_ids_changed or chunk_ids_changed:
             self._defragment_ids(
+                defragment_ce_ids=False,
                 defragment_nodes=node_ids_changed,
                 defragment_edges=edge_ids_changed,
                 defragment_chunks=chunk_ids_changed,
@@ -2073,7 +2775,7 @@ class GraphService:
             "board-delete",
             self._build_query("board-delete", b_id=board_id),
         )
-        self._defragment_ids()
+        self._defragment_ids(defragment_ce_ids=False)
         print(f"[GraphService] board deleted: {self._stringify_board_id(board_id)}")
         return {"status": "ok"}
 

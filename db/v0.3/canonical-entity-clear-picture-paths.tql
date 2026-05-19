@@ -1,5 +1,5 @@
 match
-  $entity isa canonical-entity, has en_id "{en_id}";
+  $entity isa canonical-entity, has en_id {en_id};
   $entity has picture_path $picture_path;
 delete
   has $picture_path of $entity;

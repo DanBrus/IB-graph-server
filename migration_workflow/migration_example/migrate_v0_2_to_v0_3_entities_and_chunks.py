@@ -15,7 +15,7 @@ class EntityAggregate:
     _candidate_type_seen: set[str] = field(default_factory=set)
     picture_paths: list[str] = field(default_factory=list)
     _picture_path_seen: set[str] = field(default_factory=set)
-    en_id: str | None = None
+    en_id: int | None = None
 
     def add_candidate_type(self, entity_type: str) -> None:
         if entity_type in self._candidate_type_seen:
@@ -326,10 +326,10 @@ def _run_new_raw_write(new_client, operation: str, query: str) -> None:
     new_client._execute_write(operation, query)
 
 
-def _insert_entity_picture_path(new_client, *, en_id: str, picture_path: str) -> None:
+def _insert_entity_picture_path(new_client, *, en_id: int, picture_path: str) -> None:
     query = (
         "match\n"
-        f"  $entity isa canonical-entity, has en_id \"{_escape_typeql_string(en_id)}\";\n"
+        f"  $entity isa canonical-entity, has en_id {en_id};\n"
         "insert\n"
         f"  $entity has picture_path \"{_escape_typeql_string(picture_path)}\";\n"
         "end;"
@@ -441,7 +441,7 @@ def _collect_entities(
             raise ValueError(
                 f"canonical-entity {entity_name!r} has no non-empty node_type in v0.2 data"
             )
-        entity.en_id = f"ce-{index}"
+        entity.en_id = index
 
     return entities_by_name, node_entity_name_map
 
